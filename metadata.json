@@ -1,0 +1,7 @@
+{
+  "name": "Tijani Ukay Connect",
+  "description": "An exclusive digital hub for residents of the Tijani Ukay community, enabling them to manage residence-related activities, stay informed, and communicate with management.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
