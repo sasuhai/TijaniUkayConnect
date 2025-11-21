@@ -6,15 +6,25 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
 import { Modal } from '../../components/ui/Modal';
-import { IconTrash, IconPlus } from '../../components/icons';
+import { IconTrash, IconPlus, IconPencil } from '../../components/icons';
 import { formatDate, toYyyyMmDd, getErrorMessage } from '../../utils/helpers';
+
+interface PollOption {
+    id: string;
+    text: string;
+}
 
 interface AdminPoll {
     id: string;
     question: string;
     end_date: string;
     created_at: string;
-    options?: { id: string; text: string }[];
+    options: PollOption[];
+}
+
+interface FormOption {
+    id?: string; // id is present if it's an existing option being edited
+    text: string;
 }
 
 export const ManagePolls: FC = () => {
@@ -23,10 +33,13 @@ export const ManagePolls: FC = () => {
     const [isModalOpen, setModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Edit State
+    const [editingPoll, setEditingPoll] = useState<AdminPoll | null>(null);
+
     // Form State
     const [question, setQuestion] = useState('');
     const [endDate, setEndDate] = useState(toYyyyMmDd(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))); // Default 1 week
-    const [options, setOptions] = useState<string[]>(['', '']); // Start with 2 empty options
+    const [formOptions, setFormOptions] = useState<FormOption[]>([{ text: '' }, { text: '' }]);
 
     const fetchPolls = useCallback(async () => {
         setLoading(true);
@@ -37,7 +50,14 @@ export const ManagePolls: FC = () => {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            if (data) setPolls(data as unknown as AdminPoll[]);
+            
+            // Sort options by ID or creation order to keep them stable in the UI
+            const formattedData = (data as any[]).map(poll => ({
+                ...poll,
+                options: (poll.options || []).sort((a: any, b: any) => a.id.localeCompare(b.id))
+            }));
+
+            if (data) setPolls(formattedData as AdminPoll[]);
         } catch (error) {
             alert(`Error fetching polls:\n${getErrorMessage(error)}`);
         } finally {
@@ -50,28 +70,40 @@ export const ManagePolls: FC = () => {
     }, [fetchPolls]);
 
     const handleAddOption = () => {
-        setOptions([...options, '']);
+        setFormOptions([...formOptions, { text: '' }]);
     };
 
     const handleOptionChange = (index: number, value: string) => {
-        const newOptions = [...options];
-        newOptions[index] = value;
-        setOptions(newOptions);
+        const newOptions = [...formOptions];
+        newOptions[index] = { ...newOptions[index], text: value };
+        setFormOptions(newOptions);
     };
 
     const handleRemoveOption = (index: number) => {
-        if (options.length <= 2) {
+        if (formOptions.length <= 2) {
             alert("A poll must have at least 2 options.");
             return;
         }
-        const newOptions = options.filter((_, i) => i !== index);
-        setOptions(newOptions);
+        const newOptions = formOptions.filter((_, i) => i !== index);
+        setFormOptions(newOptions);
     };
 
     const resetForm = () => {
+        setEditingPoll(null);
         setQuestion('');
         setEndDate(toYyyyMmDd(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
-        setOptions(['', '']);
+        setFormOptions([{ text: '' }, { text: '' }]);
+    };
+
+    const openEditModal = (poll: AdminPoll) => {
+        setEditingPoll(poll);
+        setQuestion(poll.question);
+        setEndDate(toYyyyMmDd(new Date(poll.end_date)));
+        
+        // Map existing options to form options
+        setFormOptions(poll.options.map(o => ({ id: o.id, text: o.text })));
+        
+        setModalOpen(true);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -82,7 +114,7 @@ export const ManagePolls: FC = () => {
             return;
         }
         
-        const validOptions = options.map(o => o.trim()).filter(o => o.length > 0);
+        const validOptions = formOptions.filter(o => o.text.trim().length > 0);
         if (validOptions.length < 2) {
             alert("Please provide at least 2 valid options.");
             return;
@@ -90,37 +122,88 @@ export const ManagePolls: FC = () => {
 
         setIsSubmitting(true);
         try {
-            // 1. Create Poll
-            const { data: pollData, error: pollError } = await supabase
-                .from('polls')
-                .insert({
-                    question: question,
-                    end_date: new Date(endDate).toISOString()
-                })
-                .select()
-                .single();
+            let pollId = editingPoll?.id;
 
-            if (pollError) throw pollError;
+            if (editingPoll) {
+                // --- UPDATE EXISTING POLL ---
+                
+                // 1. Update Poll Details
+                const { error: pollError } = await supabase
+                    .from('polls')
+                    .update({
+                        question: question,
+                        end_date: new Date(endDate).toISOString()
+                    })
+                    .eq('id', editingPoll.id);
 
-            // 2. Create Options
-            const optionsPayload = validOptions.map(text => ({
-                poll_id: pollData.id,
-                text: text
-            }));
+                if (pollError) throw pollError;
 
-            const { error: optionsError } = await supabase
-                .from('poll_options')
-                .insert(optionsPayload);
+                // 2. Handle Options (Update, Insert, Delete)
+                
+                // Identify options to delete (existed in original but not in form)
+                const originalIds = editingPoll.options.map(o => o.id);
+                const currentIds = validOptions.map(o => o.id).filter(Boolean) as string[];
+                const idsToDelete = originalIds.filter(id => !currentIds.includes(id));
 
-            if (optionsError) throw optionsError;
+                if (idsToDelete.length > 0) {
+                    // Note: This might fail if foreign keys (votes) exist. 
+                    // Ideally, we catch specific FK errors, but for now we alert generally if it fails.
+                    const { error: deleteError } = await supabase
+                        .from('poll_options')
+                        .delete()
+                        .in('id', idsToDelete);
+                    
+                    if (deleteError) {
+                        console.warn("Could not delete some options (likely due to existing votes):", deleteError);
+                        alert("Some removed options could not be deleted because residents have already voted for them.");
+                    }
+                }
+
+                // Upsert (Update existing or Insert new)
+                for (const opt of validOptions) {
+                    if (opt.id) {
+                        // Update existing
+                        await supabase.from('poll_options').update({ text: opt.text }).eq('id', opt.id);
+                    } else {
+                        // Insert new
+                        await supabase.from('poll_options').insert({ poll_id: editingPoll.id, text: opt.text });
+                    }
+                }
+
+            } else {
+                // --- CREATE NEW POLL ---
+                const { data: pollData, error: pollError } = await supabase
+                    .from('polls')
+                    .insert({
+                        question: question,
+                        end_date: new Date(endDate).toISOString()
+                    })
+                    .select()
+                    .single();
+
+                if (pollError) throw pollError;
+                pollId = pollData.id;
+
+                // Create Options
+                const optionsPayload = validOptions.map(opt => ({
+                    poll_id: pollId,
+                    text: opt.text
+                }));
+
+                const { error: optionsError } = await supabase
+                    .from('poll_options')
+                    .insert(optionsPayload);
+
+                if (optionsError) throw optionsError;
+            }
 
             setModalOpen(false);
             resetForm();
             await fetchPolls();
 
         } catch (error) {
-            console.error("Error creating poll:", error);
-            alert(`Failed to create poll:\n${getErrorMessage(error)}`);
+            console.error("Error saving poll:", error);
+            alert(`Failed to save poll:\n${getErrorMessage(error)}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -174,8 +257,11 @@ export const ManagePolls: FC = () => {
                                             ))}
                                         </ul>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <button onClick={() => handleDelete(poll.id)} className="text-red-600 hover:text-red-800">
+                                    <td className="px-6 py-4 flex space-x-2">
+                                        <button onClick={() => openEditModal(poll)} className="text-blue-600 hover:text-blue-800" title="Edit Poll">
+                                            <IconPencil className="h-5 w-5" />
+                                        </button>
+                                        <button onClick={() => handleDelete(poll.id)} className="text-red-600 hover:text-red-800" title="Delete Poll">
                                             <IconTrash className="h-5 w-5" />
                                         </button>
                                     </td>
@@ -186,7 +272,7 @@ export const ManagePolls: FC = () => {
                 </table>
             </div>
 
-            <Modal isOpen={isModalOpen} onClose={() => setModalOpen(false)} title="Create New Poll">
+            <Modal isOpen={isModalOpen} onClose={() => setModalOpen(false)} title={editingPoll ? "Edit Poll" : "Create New Poll"}>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <Input 
                         label="Question" 
@@ -210,17 +296,17 @@ export const ManagePolls: FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Options</label>
                         <div className="space-y-2">
-                            {options.map((opt, idx) => (
+                            {formOptions.map((opt, idx) => (
                                 <div key={idx} className="flex items-center space-x-2">
                                     <input
                                         type="text"
-                                        value={opt}
+                                        value={opt.text}
                                         onChange={(e) => handleOptionChange(idx, e.target.value)}
                                         className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm"
                                         placeholder={`Option ${idx + 1}`}
                                         required
                                     />
-                                    {options.length > 2 && (
+                                    {formOptions.length > 2 && (
                                         <button 
                                             type="button" 
                                             onClick={() => handleRemoveOption(idx)}
@@ -245,7 +331,7 @@ export const ManagePolls: FC = () => {
                     <div className="flex justify-end space-x-2 pt-4 border-t mt-4">
                         <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
                         <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? <Spinner /> : 'Create Poll'}
+                            {isSubmitting ? <Spinner /> : (editingPoll ? 'Update Poll' : 'Create Poll')}
                         </Button>
                     </div>
                 </form>
