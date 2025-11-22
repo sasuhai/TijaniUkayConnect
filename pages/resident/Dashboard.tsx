@@ -1,8 +1,10 @@
 
-import React, { FC, useState } from 'react';
+import React, { FC, useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { SidebarHeader } from '../../components/layout/SidebarHeader';
 import { NavLink } from '../../components/NavLink';
-import { IconMenu, IconHome, IconUserCircle, IconMegaphone, IconQrCode, IconCalendar, IconDocument, IconPhoto, IconVideo, IconPhone, IconAdmin, IconLogout, IconExclamationTriangle, IconPoll } from '../../components/icons';
+import { GlobalSearch } from '../../components/search/GlobalSearch';
+import { IconMenu, IconHome, IconUserCircle, IconMegaphone, IconQrCode, IconCalendar, IconDocument, IconPhoto, IconVideo, IconPhone, IconAdmin, IconLogout, IconExclamationTriangle, IconPoll, IconSearch } from '../../components/icons';
 import { DashboardContent } from './DashboardContent';
 import { ProfilePage } from './ProfilePage';
 import { AnnouncementsPage } from './AnnouncementsPage';
@@ -21,6 +23,8 @@ export type Page = 'dashboard' | 'profile' | 'announcements' | 'visitors' | 'boo
 export const Dashboard: FC = () => {
     const { isAdmin, logout } = useAuth();
     const [isSidebarOpen, setSidebarOpen] = useState(false);
+    const [isSearchOpen, setSearchOpen] = useState(false);
+
 
     // Initialize page from local storage or default to 'dashboard'
     const [currentPage, setCurrentPage] = useState<Page>(() => {
@@ -29,6 +33,18 @@ export const Dashboard: FC = () => {
         const validPages: Page[] = ['dashboard', 'profile', 'announcements', 'visitors', 'booking', 'documents', 'photos', 'videos', 'contacts', 'issues', 'polls', 'admin'];
         return (savedPage && validPages.includes(savedPage as Page)) ? (savedPage as Page) : 'dashboard';
     });
+
+    // Keyboard shortcut for search (Ctrl+K or Cmd+K)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                setSearchOpen(true);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const navigateTo = (page: Page) => {
         setCurrentPage(page);
@@ -77,7 +93,7 @@ export const Dashboard: FC = () => {
             default: return <DashboardContent setCurrentPage={navigateTo} />;
         }
     };
-    
+
     const handleLogout = () => {
         localStorage.removeItem('tijani_current_page');
         logout();
@@ -86,23 +102,31 @@ export const Dashboard: FC = () => {
     return (
         <div className="flex min-h-screen bg-brand-light-gray">
             <aside className={`bg-brand-dark fixed inset-y-0 left-0 z-30 w-64 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0`}>
-                <div className="flex items-center justify-center p-6 bg-brand-dark/50">
-                    <span className="text-white text-2xl font-semibold">Tijani Ukay</span>
-                </div>
+                <SidebarHeader />
                 <nav className="mt-6">
                     {navItems.map(item => (!item.adminOnly || isAdmin) && (
                         <NavLink key={item.id} label={item.label} icon={item.icon} isActive={currentPage === item.id} onClick={() => navigateTo(item.id as Page)} />
                     ))}
                     <div className="absolute bottom-0 w-full p-4 border-t border-gray-700">
-                         <NavLink label="Logout" icon={<IconLogout className="h-6 w-6" />} isActive={false} onClick={handleLogout} />
+                        <NavLink label="Logout" icon={<IconLogout className="h-6 w-6" />} isActive={false} onClick={handleLogout} />
                     </div>
                 </nav>
             </aside>
 
             <div className="flex-1 flex flex-col">
-                <header className="flex items-center justify-between p-4 bg-white shadow-md md:hidden">
-                    <span className="text-xl font-semibold text-brand-dark">Tijani Ukay Connect</span>
-                    <button onClick={() => setSidebarOpen(!isSidebarOpen)}>
+                <header className="flex items-center justify-between p-4 bg-white shadow-md">
+                    <span className="text-xl font-semibold text-brand-dark md:hidden">Tijani Ukay Connect</span>
+                    <div className="hidden md:flex items-center space-x-4">
+                        <button
+                            onClick={() => setSearchOpen(true)}
+                            className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                        >
+                            <IconSearch className="h-5 w-5 text-gray-600" />
+                            <span className="text-sm text-gray-600">Search...</span>
+                            <kbd className="hidden sm:inline-block px-2 py-1 text-xs bg-white border rounded">Ctrl+K</kbd>
+                        </button>
+                    </div>
+                    <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="md:hidden">
                         <IconMenu className="h-6 w-6 text-gray-600" />
                     </button>
                 </header>
@@ -110,6 +134,8 @@ export const Dashboard: FC = () => {
                     {renderPage()}
                 </main>
             </div>
+
+            {isSearchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
         </div>
     );
 };

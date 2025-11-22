@@ -13,7 +13,7 @@ export const ContactsPage: FC = () => {
             return cached ? JSON.parse(cached) : [];
         } catch { return []; }
     });
-    
+
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -45,10 +45,10 @@ export const ContactsPage: FC = () => {
     return (
         <div>
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-3xl font-bold text-brand-dark">Important Contacts</h1>
+                <h1 className="text-3xl font-bold text-brand-dark">Contacts</h1>
                 {loading && <div className="flex items-center text-sm text-gray-500 bg-white px-3 py-1 rounded-full shadow-sm"><Spinner /><span className="ml-2">Updating...</span></div>}
             </div>
-            
+
             {contacts.length === 0 && loading ? (
                 <div className="flex flex-col items-center justify-center py-12">
                     <Spinner />
@@ -63,6 +63,14 @@ export const ContactsPage: FC = () => {
                                 <h3 className="font-bold text-xl">{contact.name}</h3>
                                 <p className="text-gray-600">{contact.role}</p>
                                 <p className="font-semibold text-lg text-brand-dark mt-1">{contact.phone}</p>
+                                {contact.email && (
+                                    <a
+                                        href={`mailto:${contact.email}`}
+                                        className="text-brand-green hover:underline text-sm block mt-1"
+                                    >
+                                        {contact.email}
+                                    </a>
+                                )}
                             </div>
                         </Card>
                     ))}

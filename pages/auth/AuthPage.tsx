@@ -26,7 +26,7 @@ export const AuthPage: FC = () => {
         const formData = new FormData(e.currentTarget);
         const email = formData.get('email') as string;
         const password = formData.get('password') as string;
-        
+
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) setError(error.message);
         setLoading(false);
@@ -43,7 +43,7 @@ export const AuthPage: FC = () => {
         const email = formData.get('email') as string;
         const phone = formData.get('phone') as string;
         const password = formData.get('password') as string;
-        
+
         const { error } = await supabase.auth.signUp({
             email,
             password,
@@ -60,7 +60,7 @@ export const AuthPage: FC = () => {
             setError(error.message);
         } else {
             setSuccessMessage("Registration successful! Please check your email to confirm your account. Admins have been notified to review your registration.");
-            
+
             const { data: admins } = await supabase.from('profiles').select('email').eq('role', 'admin');
             if (admins && admins.length > 0) {
                 const adminEmails = admins.map(a => a.email);
@@ -79,11 +79,11 @@ export const AuthPage: FC = () => {
         setSuccessMessage('');
         const formData = new FormData(e.currentTarget);
         const email = formData.get('email') as string;
-    
+
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: window.location.origin,
         });
-    
+
         if (error) {
             setError(error.message);
         } else {
@@ -104,15 +104,15 @@ export const AuthPage: FC = () => {
                 </div>
                 <Card className="p-8">
                     {page === 'login' && (
-                         <>
+                        <>
                             <h2 className="text-2xl font-semibold text-center text-gray-800 mb-6">Resident Login</h2>
                             <form onSubmit={handleLogin} className="space-y-4">
                                 <Input id="email" name="email" type="email" label="Email Address" required />
                                 <Input id="password" name="password" type="password" label="Password" required />
                                 <div className="text-right">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => switchPage('reset')} 
+                                    <button
+                                        type="button"
+                                        onClick={() => switchPage('reset')}
                                         className="text-sm font-medium text-brand-green hover:text-green-700 focus:outline-none"
                                     >
                                         Forgot your password?
@@ -155,7 +155,7 @@ export const AuthPage: FC = () => {
                             ) : (
                                 <form onSubmit={handlePasswordReset} className="space-y-6">
                                     <p className="text-sm text-center text-gray-600">Enter your email address and we will send you a link to reset your password.</p>
-                                    <Input id="email" name="email" type="email" label="Email Address" required autoComplete="email"/>
+                                    <Input id="email" name="email" type="email" label="Email Address" required autoComplete="email" />
                                     {error && <p className="text-red-500 text-sm">{error}</p>}
                                     <Button type="submit" disabled={loading} className="w-full flex justify-center">{loading ? <Spinner /> : 'Send Reset Link'}</Button>
                                 </form>

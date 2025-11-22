@@ -10,13 +10,18 @@ import { ManageVideoAlbums } from './ManageVideoAlbums';
 import { ManageContacts } from './ManageContacts';
 import { ManageIssues } from './ManageIssues';
 import { ManagePolls } from './ManagePolls';
+import { ManageSettings } from './ManageSettings';
+import { AnalyticsDashboard } from './AnalyticsDashboard';
+import { ReportsPage } from './ReportsPage';
 
-type AdminPage = 'residents' | 'facilities' | 'documents' | 'announcements' | 'issues' | 'polls' | 'photos' | 'videos' | 'contacts';
+type AdminPage = 'analytics' | 'reports' | 'residents' | 'facilities' | 'documents' | 'announcements' | 'issues' | 'polls' | 'photos' | 'videos' | 'contacts' | 'settings';
 
 export const AdminPanel: FC = () => {
     const [page, setPage] = useState<AdminPage>('residents');
-    
+
     const adminPages: { id: AdminPage; label: string; icon: React.ReactNode }[] = [
+        { id: 'analytics', label: '📊 Analytics', icon: <span className="mr-2">📊</span> },
+        { id: 'reports', label: '📈 Reports', icon: <span className="mr-2">📈</span> },
         { id: 'residents', label: 'Residents', icon: <IconUsers className="h-5 w-5 mr-2" /> },
         { id: 'facilities', label: 'Facilities', icon: <IconBuilding className="h-5 w-5 mr-2" /> },
         { id: 'documents', label: 'Documents', icon: <IconDocument className="h-5 w-5 mr-2" /> },
@@ -26,10 +31,13 @@ export const AdminPanel: FC = () => {
         { id: 'photos', label: 'Photo Albums', icon: <IconPhoto className="h-5 w-5 mr-2" /> },
         { id: 'videos', label: 'Video Albums', icon: <IconVideo className="h-5 w-5 mr-2" /> },
         { id: 'contacts', label: 'Contacts', icon: <IconPhone className="h-5 w-5 mr-2" /> },
+        { id: 'settings', label: 'Settings', icon: <IconBuilding className="h-5 w-5 mr-2" /> },
     ];
-    
+
     const renderAdminPage = () => {
         switch (page) {
+            case 'analytics': return <AnalyticsDashboard />;
+            case 'reports': return <ReportsPage />;
             case 'residents': return <ManageResidents />;
             case 'facilities': return <ManageFacilities />;
             case 'documents': return <ManageDocuments />;
@@ -39,16 +47,17 @@ export const AdminPanel: FC = () => {
             case 'photos': return <ManagePhotoAlbums />;
             case 'videos': return <ManageVideoAlbums />;
             case 'contacts': return <ManageContacts />;
-            default: return <ManageResidents />;
+            case 'settings': return <ManageSettings />;
+            default: return <AnalyticsDashboard />;
         }
     };
-    
+
     return (
         <div>
             <h1 className="text-3xl font-bold text-brand-dark mb-6">Admin Panel</h1>
             <div className="flex flex-wrap space-x-2 border-b mb-6">
                 {adminPages.map(p => (
-                    <button key={p.id} onClick={() => setPage(p.id)} 
+                    <button key={p.id} onClick={() => setPage(p.id)}
                         className={`flex items-center py-2 px-4 mb-2 rounded-t-lg ${page === p.id ? 'border-b-2 border-brand-green font-semibold text-brand-green bg-green-50' : 'text-gray-600 hover:bg-gray-100'}`}>
                         {p.icon} {p.label}
                     </button>

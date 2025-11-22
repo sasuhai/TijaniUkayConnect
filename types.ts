@@ -61,29 +61,30 @@ export interface Announcement {
 }
 
 export interface Contact {
-    id: string;
-    name: string;
-    role: string;
-    phone: string;
-    email?: string;
+  id: string;
+  name: string;
+  role: string;
+  phone: string;
+  email?: string;
 }
 
 export interface PhotoAlbum {
-    id: string;
-    title: string;
-    description: string;
-    cover_image_url: string;
+  id: string;
+  title: string;
+  description: string;
+  cover_image_url: string;
 }
 
 export interface VideoAlbum {
-    id: string;
-    title: string;
-    description: string;
-    thumbnail_url: string;
+  id: string;
+  title: string;
+  description: string;
+  thumbnail_url: string;
 }
 
 export type IssueStatus = 'New' | 'In Progress' | 'Resolved' | 'Closed';
 export type IssueCategory = 'Maintenance' | 'Security' | 'Landscaping' | 'Facilities' | 'Other';
+export type IssuePriority = 'Low' | 'Medium' | 'High' | 'Critical';
 
 export interface Issue {
   id: string;
@@ -92,7 +93,9 @@ export interface Issue {
   title: string;
   description: string;
   category: IssueCategory;
+  priority: IssuePriority;
   status: IssueStatus;
+  photo_url?: string;
   admin_notes?: string;
   created_at: string;
   resolved_at?: string;
@@ -108,10 +111,23 @@ export interface IssueUpdate {
 }
 
 export interface Poll {
-    id: string;
-    question: string;
-    options: { id: string; text: string; votes: number }[];
-    totalVotes: number;
-    userVotedOptionId?: string | null;
-    endDate: string;
+  id: string;
+  question: string;
+  options: { id: string; text: string; votes: number }[];
+  totalVotes: number;
+  userVotedOptionId?: string | null;
+  endDate: string;
+}
+
+export interface Settings {
+  id: string;
+  app_name: string;
+  version: string;
+  author: string | null;
+  resident_name: string | null;
+  resident_address: string | null;
+  information1: string | null;
+  information2: string | null;
+  updated_at: string;
+  created_at: string;
 }

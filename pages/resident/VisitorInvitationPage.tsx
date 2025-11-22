@@ -52,7 +52,7 @@ export const VisitorInvitationPage: FC = () => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
-    
+
     const handleAutofill = () => {
         const randomId = Math.floor(Math.random() * 1000);
         const sampleNames = ['Alice Smith', 'Bob Johnson', 'Charlie Brown', 'Diana Prince', 'Ethan Hunt'];
@@ -81,7 +81,7 @@ export const VisitorInvitationPage: FC = () => {
             .select('*')
             .eq('resident_id', user.id)
             .order('visit_date_time', { ascending: false });
-            
+
         if (data) setInvitations(data as VisitorInvitation[]);
         if (error) console.error("Error fetching invitations:", error);
         setLoading(false);
@@ -90,22 +90,13 @@ export const VisitorInvitationPage: FC = () => {
     useEffect(() => {
         fetchInvitations();
     }, [fetchInvitations]);
-    
+
     const generateQrContent = useCallback((invite: VisitorInvitation): string => {
-        return `Tijani Ukay Visitor Pass
--------------------------
-Status: VALID for ${formatDate(invite.visit_date_time)}
--------------------------
-Visitor Details
-Name: ${invite.visitor_name}
-Phone: ${invite.visitor_phone}
-Vehicle: ${invite.vehicle_plate} (${invite.vehicle_type})
-Reason: ${invite.reason}
--------------------------
-Host Details
-Name: ${invite.resident_name}
-Pass ID: ${invite.id}
-Generated: ${invite.created_at}`;
+        // Use network IP instead of localhost so phones can access it
+        const baseUrl = window.location.hostname === 'localhost'
+            ? 'http://192.168.0.111:3000'
+            : window.location.origin;
+        return `${baseUrl}/verify-visitor/${invite.id}`;
     }, []);
 
 
@@ -127,9 +118,9 @@ Generated: ${invite.created_at}`;
             if (isNaN(visit_date_time.getTime())) {
                 throw new Error("The selected date is invalid.");
             }
-            
+
             const qrValue = uuidv4();
-            
+
             const inviteData = {
                 visitor_name: formData.visitorName,
                 visitor_phone: formData.visitorPhone,
@@ -147,7 +138,7 @@ Generated: ${invite.created_at}`;
                 .insert(inviteData);
 
             if (error) throw error;
-            
+
             await fetchInvitations();
             setFormData(initialFormState);
 
@@ -159,7 +150,7 @@ Generated: ${invite.created_at}`;
             setIsSubmitting(false);
         }
     };
-    
+
     const downloadBlob = (blob: Blob, fileName: string) => {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -169,7 +160,7 @@ Generated: ${invite.created_at}`;
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
     };
-    
+
     const handleShare = (invite: VisitorInvitation) => {
         if (sharingId) return;
         setSharingId(invite.id);
@@ -196,7 +187,7 @@ Generated: ${invite.created_at}`;
                 setInviteForShare(null);
                 return;
             }
-            
+
             const width = 600;
             const padding = 40;
             const qrDisplaySize = 400;
@@ -236,13 +227,13 @@ Generated: ${invite.created_at}`;
 
             const contentWidth = width - (padding * 2);
             const footerLines = wrapText(footerText, contentWidth, footerFont);
-            
+
             const titleHeight = 40;
             const addressHeight = 32;
             const detailsHeight = 26;
             const footerLineHeight = 22;
             const footerBlockHeight = footerLines.length * footerLineHeight;
-            
+
             // Calculate total height with spacing
             const height = padding + titleHeight + 20 + qrDisplaySize + 30 + addressHeight + 10 + detailsHeight + 40 + footerBlockHeight + padding;
 
@@ -250,7 +241,7 @@ Generated: ${invite.created_at}`;
             canvas.height = height;
             ctx.fillStyle = bgColor;
             ctx.fillRect(0, 0, width, height);
-            
+
             let currentY = padding;
             ctx.textAlign = 'center';
             const centerX = width / 2;
@@ -259,7 +250,7 @@ Generated: ${invite.created_at}`;
             ctx.fillStyle = titleColor;
             currentY += titleHeight;
             ctx.fillText(titleText, centerX, currentY);
-            
+
             currentY += 20;
             ctx.drawImage(qrCanvas, (width - qrDisplaySize) / 2, currentY, qrDisplaySize, qrDisplaySize);
             currentY += qrDisplaySize;
@@ -269,7 +260,7 @@ Generated: ${invite.created_at}`;
             ctx.fillStyle = titleColor;
             ctx.fillText(addressLine, centerX, currentY);
             currentY += addressHeight + 10;
-            
+
             ctx.font = detailsFont;
             ctx.fillStyle = textColor;
             ctx.fillText(detailsLine, centerX, currentY);
@@ -281,7 +272,7 @@ Generated: ${invite.created_at}`;
             footerLines.forEach((line, index) => {
                 ctx.fillText(line, centerX, currentY + (index * footerLineHeight));
             });
-            
+
             canvas.toBlob(async (blob) => {
                 if (!blob) {
                     alert('Failed to create image file.');
@@ -289,10 +280,10 @@ Generated: ${invite.created_at}`;
                     setInviteForShare(null);
                     return;
                 }
-                
+
                 const fileName = `VisitorPass-${inviteForShare.visitor_name.replace(/\s+/g, '_')}.png`;
                 const file = new File([blob], fileName, { type: 'image/png' });
-                
+
                 const shareData = {
                     files: [file],
                     title: `Visitor Pass for ${inviteForShare.visitor_name}`,
@@ -304,16 +295,16 @@ Generated: ${invite.created_at}`;
                         await navigator.share(shareData);
                     } catch (error) {
                         if ((error as Error).name !== 'AbortError') {
-                             console.error("Sharing failed, falling back to download:", error);
-                             alert("Sharing was cancelled or failed. The image will be downloaded instead.");
-                             downloadBlob(blob, fileName);
+                            console.error("Sharing failed, falling back to download:", error);
+                            alert("Sharing was cancelled or failed. The image will be downloaded instead.");
+                            downloadBlob(blob, fileName);
                         }
                     }
                 } else {
                     alert("Your browser doesn't support sharing files. The image will be downloaded.");
                     downloadBlob(blob, fileName);
                 }
-                
+
                 setSharingId(null);
                 setInviteForShare(null);
             }, 'image/png', 1.0);
@@ -330,15 +321,15 @@ Generated: ${invite.created_at}`;
 
     const confirmDelete = async () => {
         if (!inviteToDelete) return;
-        
+
         const { error } = await supabase.from('visitor_invitations').delete().eq('id', inviteToDelete.id);
-        
+
         if (error) {
             alert("Failed to delete invitation: " + error.message);
         } else {
             await fetchInvitations();
         }
-        
+
         setDeleteConfirmOpen(false);
         setInviteToDelete(null);
     };
@@ -381,25 +372,25 @@ Generated: ${invite.created_at}`;
                 alert("Unable to access camera. Please ensure you have given permission.");
                 setScannerOpen(false);
             });
-            
+
         const tick = () => {
             if (!videoRef.current || !canvasRef.current) return;
-            
+
             if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
                 const video = videoRef.current;
                 const canvas = canvasRef.current;
                 const ctx = canvas.getContext("2d");
-                
+
                 if (ctx) {
                     canvas.height = video.videoHeight;
                     canvas.width = video.videoWidth;
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
+
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     const code = jsQR(imageData.data, imageData.width, imageData.height, {
                         inversionAttempts: "dontInvert",
                     });
-                    
+
                     if (code) {
                         // Stop scanning momentarily
                         setIsScanning(false);
@@ -410,27 +401,38 @@ Generated: ${invite.created_at}`;
             }
             animationFrameRef.current = requestAnimationFrame(tick);
         };
-        
+
         return () => {
-             if (animationFrameRef.current) {
+            if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
     }, [isScannerOpen, isScanning]);
 
     const processScanResult = async (data: string) => {
-        // Expected format usually contains "Pass ID: <UUID>" or similar.
-        const idMatch = data.match(/Pass ID: ([a-f0-9\-]{36})/i);
-        
-        if (idMatch && idMatch[1]) {
-            const inviteId = idMatch[1];
+        // Try to extract UUID from URL or fallback to old format
+        let inviteId = '';
+
+        // Check if it's a URL format: .../verify-visitor/<UUID>
+        const urlMatch = data.match(/\/verify-visitor\/([a-f0-9\-]{36})/i);
+        if (urlMatch && urlMatch[1]) {
+            inviteId = urlMatch[1];
+        } else {
+            // Fallback to old format: "Pass ID: <UUID>"
+            const idMatch = data.match(/Pass ID: ([a-f0-9\-]{36})/i);
+            if (idMatch && idMatch[1]) {
+                inviteId = idMatch[1];
+            }
+        }
+
+        if (inviteId) {
             try {
                 const { data: invite, error } = await supabase
                     .from('visitor_invitations')
                     .select('*')
                     .eq('id', inviteId)
                     .single();
-                
+
                 if (error || !invite) {
                     setScanResult({ status: 'invalid', message: 'Invitation not found in the database.' });
                 } else {
@@ -438,7 +440,7 @@ Generated: ${invite.created_at}`;
                     const visitDate = new Date(invite.visit_date_time);
                     const now = new Date();
                     const isToday = visitDate.toDateString() === now.toDateString();
-                    
+
                     if (isToday) {
                         setScanResult({ status: 'valid', invitation: invite as VisitorInvitation });
                     } else {
@@ -457,7 +459,7 @@ Generated: ${invite.created_at}`;
         setScanResult(null);
         setIsScanning(true);
     };
-    
+
     return (
         <div>
             <div className="flex justify-between items-center mb-6">
@@ -471,8 +473,8 @@ Generated: ${invite.created_at}`;
                 <div className="lg:col-span-1">
                     <Card className="p-6">
                         <div className="flex justify-between items-center mb-4">
-                           <h2 className="text-xl font-semibold">Register New Visitor</h2>
-                           <Button type="button" variant="secondary" onClick={handleAutofill} className="text-sm py-1 px-3">Autofill</Button>
+                            <h2 className="text-xl font-semibold">Register New Visitor</h2>
+                            <Button type="button" variant="secondary" onClick={handleAutofill} className="text-sm py-1 px-3">Autofill</Button>
                         </div>
                         <form onSubmit={handleFormSubmit} className="space-y-4">
                             <Input label="Visitor Name" name="visitorName" value={formData.visitorName} onChange={handleInputChange} required />
@@ -485,17 +487,17 @@ Generated: ${invite.created_at}`;
                                 <option value="truck">Truck</option>
                                 <option value="other">Other</option>
                             </Select>
-                             <Input label="Date of Visit" name="visitDate" type="date" value={formData.visitDate} onChange={handleInputChange} required min={today} />
-                             <Textarea label="Reason for Visit" name="reason" value={formData.reason} onChange={handleInputChange} required />
-                             <Button type="submit" className="w-full" disabled={isSubmitting}>
-                                {isSubmitting ? <Spinner/> : 'Generate Invitation'}
+                            <Input label="Date of Visit" name="visitDate" type="date" value={formData.visitDate} onChange={handleInputChange} required min={today} />
+                            <Textarea label="Reason for Visit" name="reason" value={formData.reason} onChange={handleInputChange} required />
+                            <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                {isSubmitting ? <Spinner /> : 'Generate Invitation'}
                             </Button>
                         </form>
                     </Card>
                 </div>
                 <div className="lg:col-span-2">
-                     <h2 className="text-xl font-semibold mb-4">My Invitations</h2>
-                     <div className="space-y-4">
+                    <h2 className="text-xl font-semibold mb-4">My Invitations</h2>
+                    <div className="space-y-4">
                         {loading ? <Spinner /> : invitations.map(inv => (
                             <Card key={inv.id} className="p-4 flex justify-between items-center">
                                 <div>
@@ -506,7 +508,7 @@ Generated: ${invite.created_at}`;
                                 <div className="flex items-center space-x-2">
                                     <Button onClick={() => showQrCode(inv)}>Show QR</Button>
                                     <Button variant="secondary" onClick={() => handleShare(inv)} className="p-2" disabled={sharingId === inv.id} title="Share Pass">
-                                       {sharingId === inv.id ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div> : <IconShare className="h-5 w-5" />}
+                                        {sharingId === inv.id ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div> : <IconShare className="h-5 w-5" />}
                                     </Button>
                                     <Button variant="danger" onClick={() => openDeleteConfirm(inv)} className="p-2" title="Delete Invitation">
                                         <IconTrash className="h-5 w-5" />
@@ -514,7 +516,7 @@ Generated: ${invite.created_at}`;
                                 </div>
                             </Card>
                         ))}
-                     </div>
+                    </div>
                 </div>
             </div>
 
@@ -522,8 +524,8 @@ Generated: ${invite.created_at}`;
                 {selectedInvite && (
                     <div className="flex flex-col items-center space-y-4">
                         <div className="p-2 bg-white inline-block rounded-lg">
-                           {user ? 
-                                <QRCodeCanvas value={generateQrContent(selectedInvite)} size={256} /> : 
+                            {user ?
+                                <QRCodeCanvas value={generateQrContent(selectedInvite)} size={256} /> :
                                 <div className="w-64 h-64 flex items-center justify-center bg-gray-100 rounded-lg"><Spinner /></div>
                             }
                         </div>
@@ -538,7 +540,7 @@ Generated: ${invite.created_at}`;
                 )}
             </Modal>
 
-             <Modal isOpen={isDeleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Confirm Deletion">
+            <Modal isOpen={isDeleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Confirm Deletion">
                 {inviteToDelete && (
                     <div>
                         <p className="mb-6">
@@ -555,13 +557,13 @@ Generated: ${invite.created_at}`;
                     </div>
                 )}
             </Modal>
-            
+
             {/* Scanner Modal */}
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col justify-center items-center p-4">
                     <div className="w-full max-w-md relative">
-                         <button 
-                            onClick={() => setScannerOpen(false)} 
+                        <button
+                            onClick={() => setScannerOpen(false)}
                             className="absolute top-0 right-0 -mt-12 text-white hover:text-gray-300 p-2"
                         >
                             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -577,7 +579,7 @@ Generated: ${invite.created_at}`;
                                         <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-brand-green -mt-1 -mr-1"></div>
                                         <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-brand-green -mb-1 -ml-1"></div>
                                         <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-brand-green -mb-1 -mr-1"></div>
-                                        <div className="w-full h-1 bg-brand-green absolute top-0 animate-pulse shadow-glow-green" style={{animation: 'scan 2s infinite'}}></div>
+                                        <div className="w-full h-1 bg-brand-green absolute top-0 animate-pulse shadow-glow-green" style={{ animation: 'scan 2s infinite' }}></div>
                                     </div>
                                 </div>
                                 <p className="absolute bottom-4 w-full text-center text-white text-sm bg-black/50 py-1">Align QR code within the frame</p>
@@ -609,12 +611,11 @@ Generated: ${invite.created_at}`;
                                         </div>
                                     )}
 
-                                    <h3 className={`text-2xl font-bold ${
-                                        scanResult.status === 'valid' ? 'text-green-600' : 
+                                    <h3 className={`text-2xl font-bold ${scanResult.status === 'valid' ? 'text-green-600' :
                                         scanResult.status === 'expired' ? 'text-yellow-600' : 'text-red-600'
-                                    }`}>
-                                        {scanResult.status === 'valid' ? 'ACCESS GRANTED' : 
-                                         scanResult.status === 'expired' ? 'PASS EXPIRED' : 'INVALID PASS'}
+                                        }`}>
+                                        {scanResult.status === 'valid' ? 'ACCESS GRANTED' :
+                                            scanResult.status === 'expired' ? 'PASS EXPIRED' : 'INVALID PASS'}
                                     </h3>
                                     {scanResult.message && <p className="text-gray-500 mt-2">{scanResult.message}</p>}
                                 </div>
@@ -652,7 +653,7 @@ Generated: ${invite.created_at}`;
                     </div>
                 </div>
             )}
-            
+
             {inviteForShare && user && (
                 <div ref={qrContainerRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
                     <QRCodeCanvas value={generateQrContent(inviteForShare)} size={400} />

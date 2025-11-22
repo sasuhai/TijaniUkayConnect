@@ -1,34 +1,54 @@
-import React, { FC } from 'react';
+import React, { FC, useState, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
+import { supabase } from '../../services/supabaseService';
+import { Settings } from '../../types';
+import heroBg from '../../assets/landing-bg.jpg';
 
 export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = ({ onLogin, onRegister }) => {
+    const [settings, setSettings] = useState<Settings | null>(null);
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const { data } = await supabase
+                    .from('settings')
+                    .select('resident_name, app_name, information1, information2')
+                    .limit(1);
+
+                if (data && data.length > 0) {
+                    setSettings(data[0] as Settings);
+                }
+            } catch (e) {
+                // Silent error - will use fallback values
+            }
+        };
+        fetchSettings();
+    }, []);
+
     // --- BACKGROUND IMAGE CONFIGURATION ---
-    // To use your own local image:
-    // 1. Ensure your image is named 'hero-background.jpg'.
-    // 2. Place it inside the 'public/assets/' folder of your project.
-    // 3. Uncomment the 'localImage' line below and comment out the 'remoteImage' line.
-    
-    // const backgroundImageUrl = '/assets/hero-background.jpg'; // Local image
-    const backgroundImageUrl = 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=2000&q=80'; // Default luxury home image
+    // Using local image from assets
+    const backgroundImageUrl = heroBg;
 
     return (
-        <div 
+        <div
             className="relative flex flex-col min-h-screen w-full overflow-hidden text-white bg-brand-dark bg-cover bg-center"
             style={{ backgroundImage: `url('${backgroundImageUrl}')` }}
         >
             {/* Dark overlay to ensure text readability over the photographic background */}
             <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
-            
+
             <header className="relative z-10 p-4 flex justify-between items-center bg-transparent">
-                <h1 className="text-2xl font-bold tracking-wider drop-shadow-sm">Tijani Ukay Connect</h1>
+                <h1 className="text-2xl font-bold tracking-wider drop-shadow-sm">
+                    {settings?.resident_name || 'Tijani Ukay Connect'}
+                </h1>
             </header>
 
             <main className="relative z-10 flex-grow flex flex-col items-center justify-center text-center p-4">
                 <h2 className="text-5xl md:text-7xl font-extrabold leading-tight mb-4 drop-shadow-lg animate-fade-in-down">
-                    Welcome to Tijani Ukay
+                    {settings?.app_name || 'Tijani Ukay'}
                 </h2>
                 <p className="text-xl md:text-2xl max-w-3xl mb-8 drop-shadow-md animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                    Your exclusive portal for community living, visitor management, and facility bookings.
+                    {settings?.information1 || 'Your exclusive portal for community living, visitor management, and facility bookings.'}
                 </p>
                 <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
                     <Button
@@ -47,6 +67,14 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
                     </Button>
                 </div>
             </main>
+
+            {settings?.information2 && (
+                <footer className="relative z-10 p-4 text-center">
+                    <p className="text-sm text-white/80 drop-shadow-sm">
+                        {settings.information2}
+                    </p>
+                </footer>
+            )}
         </div>
     );
 };
