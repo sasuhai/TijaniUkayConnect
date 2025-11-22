@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseService';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
@@ -26,16 +27,20 @@ interface FacilityUsage {
     utilizationRate: number;
 }
 
+type DataScope = 'my' | 'all';
+
 export const ReportsPage: React.FC = () => {
     const { showToast } = useToast();
+    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+    const [dataScope, setDataScope] = useState<DataScope>('all');
     const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([]);
     const [facilityUsage, setFacilityUsage] = useState<FacilityUsage[]>([]);
 
     useEffect(() => {
         fetchReports();
-    }, [selectedMonth]);
+    }, [selectedMonth, dataScope]);
 
     const fetchReports = async () => {
         try {
@@ -57,10 +62,25 @@ export const ReportsPage: React.FC = () => {
                     endDate.setMonth(endDate.getMonth() + 1);
                     const endDateStr = endDate.toISOString().slice(0, 10);
 
+                    // Build queries with optional user filtering
+                    let bookingsQuery = supabase.from('bookings').select('*')
+                        .gte('booking_date', startDate)
+                        .lt('booking_date', endDateStr);
+
+                    let issuesQuery = supabase.from('issues').select('status, created_at, resolved_at, resident_id')
+                        .gte('created_at', startDate)
+                        .lt('created_at', endDateStr);
+
+                    // Filter by user if viewing personal data
+                    if (dataScope === 'my' && user) {
+                        bookingsQuery = bookingsQuery.eq('resident_id', user.id);
+                        issuesQuery = issuesQuery.eq('resident_id', user.id);
+                    }
+
                     const [residentsRes, bookingsRes, issuesRes] = await Promise.all([
                         supabase.from('profiles').select('created_at').gte('created_at', startDate).lt('created_at', endDateStr),
-                        supabase.from('bookings').select('*').gte('booking_date', startDate).lt('booking_date', endDateStr),
-                        supabase.from('issues').select('status, created_at, resolved_at').gte('created_at', startDate).lt('created_at', endDateStr)
+                        bookingsQuery,
+                        issuesQuery
                     ]);
 
                     const newResidents = residentsRes.data?.length || 0;
@@ -93,11 +113,18 @@ export const ReportsPage: React.FC = () => {
 
             const usageStats: FacilityUsage[] = await Promise.all(
                 facilities.map(async (facility) => {
-                    const { data: bookings } = await supabase
+                    let facilityQuery = supabase
                         .from('bookings')
                         .select('*')
                         .eq('facility_id', facility.id)
                         .gte('booking_date', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)); // Last 90 days
+
+                    // Filter by user if viewing personal data
+                    if (dataScope === 'my' && user) {
+                        facilityQuery = facilityQuery.eq('resident_id', user.id);
+                    }
+
+                    const { data: bookings } = await facilityQuery;
 
                     const totalBookings = bookings?.length || 0;
                     const uniqueUsers = new Set(bookings?.map(b => b.resident_id) || []).size;
@@ -218,6 +245,38 @@ export const ReportsPage: React.FC = () => {
                 <h1 className="text-3xl font-bold text-brand-dark">Reports & Statistics</h1>
                 <Button onClick={exportMonthlyReport}>📄 Export Monthly Report</Button>
             </div>
+
+            {/* Data Scope Selector */}
+            <Card className="p-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                        <span className="text-sm font-medium text-gray-700">View Data:</span>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setDataScope('my')}
+                                className={`px-4 py-2 rounded-lg font-medium transition ${dataScope === 'my'
+                                        ? 'bg-blue-500 text-white'
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                    }`}
+                            >
+                                📊 My Data
+                            </button>
+                            <button
+                                onClick={() => setDataScope('all')}
+                                className={`px-4 py-2 rounded-lg font-medium transition ${dataScope === 'all'
+                                        ? 'bg-purple-500 text-white'
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                    }`}
+                            >
+                                🏘️ All Residents
+                            </button>
+                        </div>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                        {dataScope === 'my' ? 'Showing only your activity' : 'Showing all community activity'}
+                    </div>
+                </div>
+            </Card>
 
             {/* Monthly Trends */}
             <Card className="p-6">

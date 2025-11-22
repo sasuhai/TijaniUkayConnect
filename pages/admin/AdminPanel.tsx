@@ -11,17 +11,13 @@ import { ManageContacts } from './ManageContacts';
 import { ManageIssues } from './ManageIssues';
 import { ManagePolls } from './ManagePolls';
 import { ManageSettings } from './ManageSettings';
-import { AnalyticsDashboard } from './AnalyticsDashboard';
-import { ReportsPage } from './ReportsPage';
 
-type AdminPage = 'analytics' | 'reports' | 'residents' | 'facilities' | 'documents' | 'announcements' | 'issues' | 'polls' | 'photos' | 'videos' | 'contacts' | 'settings';
+type AdminPage = 'residents' | 'facilities' | 'documents' | 'announcements' | 'issues' | 'polls' | 'photos' | 'videos' | 'contacts' | 'settings';
 
 export const AdminPanel: FC = () => {
     const [page, setPage] = useState<AdminPage>('residents');
 
     const adminPages: { id: AdminPage; label: string; icon: React.ReactNode }[] = [
-        { id: 'analytics', label: '📊 Analytics', icon: <span className="mr-2">📊</span> },
-        { id: 'reports', label: '📈 Reports', icon: <span className="mr-2">📈</span> },
         { id: 'residents', label: 'Residents', icon: <IconUsers className="h-5 w-5 mr-2" /> },
         { id: 'facilities', label: 'Facilities', icon: <IconBuilding className="h-5 w-5 mr-2" /> },
         { id: 'documents', label: 'Documents', icon: <IconDocument className="h-5 w-5 mr-2" /> },
@@ -36,8 +32,6 @@ export const AdminPanel: FC = () => {
 
     const renderAdminPage = () => {
         switch (page) {
-            case 'analytics': return <AnalyticsDashboard />;
-            case 'reports': return <ReportsPage />;
             case 'residents': return <ManageResidents />;
             case 'facilities': return <ManageFacilities />;
             case 'documents': return <ManageDocuments />;
@@ -48,7 +42,7 @@ export const AdminPanel: FC = () => {
             case 'videos': return <ManageVideoAlbums />;
             case 'contacts': return <ManageContacts />;
             case 'settings': return <ManageSettings />;
-            default: return <AnalyticsDashboard />;
+            default: return <ManageResidents />;
         }
     };
 

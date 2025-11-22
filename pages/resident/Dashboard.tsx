@@ -17,8 +17,10 @@ import { ContactsPage } from './ContactsPage';
 import { IssueReportingPage } from './IssueReportingPage';
 import { PollsPage } from './PollsPage';
 import { AdminPanel } from '../admin/AdminPanel';
+import { AnalyticsDashboard } from '../admin/AnalyticsDashboard';
+import { ReportsPage } from '../admin/ReportsPage';
 
-export type Page = 'dashboard' | 'profile' | 'announcements' | 'visitors' | 'booking' | 'documents' | 'photos' | 'videos' | 'contacts' | 'issues' | 'polls' | 'admin';
+export type Page = 'dashboard' | 'profile' | 'announcements' | 'visitors' | 'booking' | 'documents' | 'photos' | 'videos' | 'contacts' | 'issues' | 'polls' | 'analytics' | 'reports' | 'admin';
 
 export const Dashboard: FC = () => {
     const { isAdmin, logout } = useAuth();
@@ -30,7 +32,7 @@ export const Dashboard: FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>(() => {
         const savedPage = localStorage.getItem('tijani_current_page');
         // Validate that the saved page is a valid Page type (basic check)
-        const validPages: Page[] = ['dashboard', 'profile', 'announcements', 'visitors', 'booking', 'documents', 'photos', 'videos', 'contacts', 'issues', 'polls', 'admin'];
+        const validPages: Page[] = ['dashboard', 'profile', 'announcements', 'visitors', 'booking', 'documents', 'photos', 'videos', 'contacts', 'issues', 'polls', 'analytics', 'reports', 'admin'];
         return (savedPage && validPages.includes(savedPage as Page)) ? (savedPage as Page) : 'dashboard';
     });
 
@@ -53,18 +55,22 @@ export const Dashboard: FC = () => {
     };
 
     const navItems = [
-        { id: 'dashboard', label: 'Dashboard', icon: <IconHome className="h-6 w-6" />, adminOnly: false },
-        { id: 'profile', label: 'My Profile', icon: <IconUserCircle className="h-6 w-6" />, adminOnly: false },
-        { id: 'announcements', label: 'Announcements', icon: <IconMegaphone className="h-6 w-6" />, adminOnly: false },
-        { id: 'visitors', label: 'Visitor Invitation', icon: <IconQrCode className="h-6 w-6" />, adminOnly: false },
-        { id: 'booking', label: 'Facility Booking', icon: <IconCalendar className="h-6 w-6" />, adminOnly: false },
-        { id: 'issues', label: 'Report an Issue', icon: <IconExclamationTriangle className="h-6 w-6" />, adminOnly: false },
-        { id: 'polls', label: 'Community Polls', icon: <IconPoll className="h-6 w-6" />, adminOnly: false },
-        { id: 'documents', label: 'Documents', icon: <IconDocument className="h-6 w-6" />, adminOnly: false },
-        { id: 'photos', label: 'Photo Albums', icon: <IconPhoto className="h-6 w-6" />, adminOnly: false },
-        { id: 'videos', label: 'Video Albums', icon: <IconVideo className="h-6 w-6" />, adminOnly: false },
-        { id: 'contacts', label: 'Contacts', icon: <IconPhone className="h-6 w-6" />, adminOnly: false },
-        { id: 'admin', label: 'Admin Panel', icon: <IconAdmin className="h-6 w-6" />, adminOnly: true },
+        { id: 'dashboard', label: 'Dashboard', icon: <IconHome className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'profile', label: 'My Profile', icon: <IconUserCircle className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'announcements', label: 'Announcements', icon: <IconMegaphone className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'visitors', label: 'Visitor Invitation', icon: <IconQrCode className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'booking', label: 'Facility Booking', icon: <IconCalendar className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'issues', label: 'Report an Issue', icon: <IconExclamationTriangle className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'polls', label: 'Community Polls', icon: <IconPoll className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'documents', label: 'Documents', icon: <IconDocument className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'photos', label: 'Photo Albums', icon: <IconPhoto className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'videos', label: 'Video Albums', icon: <IconVideo className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'separator1', label: '', icon: null, adminOnly: false, isSeparator: true },
+        { id: 'analytics', label: '📊 Analytics', icon: <span className="text-2xl">📊</span>, adminOnly: false, isSeparator: false },
+        { id: 'reports', label: '📈 Reports', icon: <span className="text-2xl">📈</span>, adminOnly: false, isSeparator: false },
+        { id: 'separator2', label: '', icon: null, adminOnly: false, isSeparator: true },
+        { id: 'contacts', label: 'Contacts', icon: <IconPhone className="h-6 w-6" />, adminOnly: false, isSeparator: false },
+        { id: 'admin', label: 'Admin Panel', icon: <IconAdmin className="h-6 w-6" />, adminOnly: true, isSeparator: false },
     ] as const;
 
     const renderPage = () => {
@@ -80,6 +86,8 @@ export const Dashboard: FC = () => {
             case 'contacts': return <ContactsPage />;
             case 'issues': return <IssueReportingPage />;
             case 'polls': return <PollsPage />;
+            case 'analytics': return <AnalyticsDashboard />;
+            case 'reports': return <ReportsPage />;
             case 'admin':
                 if (!isAdmin) {
                     return (
@@ -105,7 +113,11 @@ export const Dashboard: FC = () => {
                 <SidebarHeader />
                 <nav className="mt-6">
                     {navItems.map(item => (!item.adminOnly || isAdmin) && (
-                        <NavLink key={item.id} label={item.label} icon={item.icon} isActive={currentPage === item.id} onClick={() => navigateTo(item.id as Page)} />
+                        item.isSeparator ? (
+                            <div key={item.id} className="h-4"></div>
+                        ) : (
+                            <NavLink key={item.id} label={item.label} icon={item.icon} isActive={currentPage === item.id} onClick={() => navigateTo(item.id as Page)} />
+                        )
                     ))}
                     <div className="absolute bottom-0 w-full p-4 border-t border-gray-700">
                         <NavLink label="Logout" icon={<IconLogout className="h-6 w-6" />} isActive={false} onClick={handleLogout} />

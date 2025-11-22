@@ -82,6 +82,15 @@ export const FacilityBookingPage: FC = () => {
 
 
     const handleSlotClick = (slot: string) => {
+        // Check if the selected date and time is in the past
+        const selectedDateTime = new Date(`${selectedDate}T${slot}`);
+        const now = new Date();
+
+        if (selectedDateTime < now) {
+            alert('Cannot book slots in the past. Please select a future date and time.');
+            return;
+        }
+
         setSelectedSlot(slot);
         setBookingModalOpen(true);
     };
@@ -89,6 +98,17 @@ export const FacilityBookingPage: FC = () => {
     const confirmBooking = async () => {
         if (!user || !selectedFacility || !selectedSlot) {
             alert("An error occurred. Missing user, facility, or slot information.");
+            return;
+        }
+
+        // Double-check that the booking is not in the past
+        const selectedDateTime = new Date(`${selectedDate}T${selectedSlot}`);
+        const now = new Date();
+
+        if (selectedDateTime < now) {
+            alert('Cannot book slots in the past. Please select a future date and time.');
+            setBookingModalOpen(false);
+            setSelectedSlot(null);
             return;
         }
 
@@ -206,7 +226,14 @@ export const FacilityBookingPage: FC = () => {
                                         <button onClick={() => changeDate(-1)} className="p-2 rounded-l-md border border-r-0 border-gray-300 bg-gray-100 hover:bg-gray-200" aria-label="Previous day">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                                         </button>
-                                        <input id="booking-date" type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="block w-full px-3 py-2 border-t border-b border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm" />
+                                        <input
+                                            id="booking-date"
+                                            type="date"
+                                            value={selectedDate}
+                                            min={toYyyyMmDd(new Date())}
+                                            onChange={e => setSelectedDate(e.target.value)}
+                                            className="block w-full px-3 py-2 border-t border-b border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm"
+                                        />
                                         <button onClick={() => changeDate(1)} className="p-2 rounded-r-md border border-l-0 border-gray-300 bg-gray-100 hover:bg-gray-200" aria-label="Next day">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
                                         </button>
@@ -250,21 +277,31 @@ export const FacilityBookingPage: FC = () => {
                                     <span className="h-4 w-4 rounded-sm bg-green-100 ring-1 ring-green-400 mr-2"></span>
                                     <span>My Booking</span>
                                 </div>
+                                <div className="flex items-center">
+                                    <span className="h-4 w-4 rounded-sm bg-gray-300 border border-gray-400 mr-2"></span>
+                                    <span>Past</span>
+                                </div>
                             </div>
                             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
                                 {timeSlots.map(slot => {
                                     const booking = bookingsOnSelectedDate.find(b => b.booking_slot === slot);
                                     const isBookedByMe = booking && user && booking.resident_id === user.id;
 
+                                    // Check if this slot is in the past
+                                    const slotDateTime = new Date(`${selectedDate}T${slot}`);
+                                    const now = new Date();
+                                    const isPast = slotDateTime < now;
+
                                     const buttonClasses =
-                                        isBookedByMe ? 'bg-green-100 text-green-800 cursor-not-allowed ring-2 ring-green-400' :
-                                            booking ? 'bg-red-100 text-red-800 cursor-not-allowed' :
-                                                'bg-gray-100 text-gray-700 hover:bg-brand-green hover:text-white';
+                                        isPast ? 'bg-gray-300 text-gray-500 cursor-not-allowed line-through' :
+                                            isBookedByMe ? 'bg-green-100 text-green-800 cursor-not-allowed ring-2 ring-green-400' :
+                                                booking ? 'bg-red-100 text-red-800 cursor-not-allowed' :
+                                                    'bg-gray-100 text-gray-700 hover:bg-brand-green hover:text-white';
 
                                     return (
                                         <button key={slot}
-                                            onClick={() => !booking && handleSlotClick(slot)}
-                                            disabled={!!booking}
+                                            onClick={() => !booking && !isPast && handleSlotClick(slot)}
+                                            disabled={!!booking || isPast}
                                             className={`p-3 rounded-lg text-center font-semibold text-sm transition ${buttonClasses}`}>
                                             {slot}
                                         </button>
