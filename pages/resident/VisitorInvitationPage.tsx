@@ -92,11 +92,33 @@ export const VisitorInvitationPage: FC = () => {
     }, [fetchInvitations]);
 
     const generateQrContent = useCallback((invite: VisitorInvitation): string => {
-        // Use network IP instead of localhost so phones can access it
-        const baseUrl = window.location.hostname === 'localhost'
-            ? 'http://192.168.0.111:3000'
-            : window.location.origin;
-        return `${baseUrl}/verify-visitor/${invite.id}`;
+        // For local development, use network IP so phones can access
+        // For production, use the actual domain
+        let baseUrl = window.location.origin;
+
+        // If running on localhost, replace with network IP
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            // Use the network IP that Vite shows (e.g., http://192.168.0.111:3001)
+            // You can find this in the terminal where you ran 'npm run dev'
+            const port = window.location.port;
+            baseUrl = `http://192.168.0.111:${port}`;
+        }
+
+        // Get the base path (e.g., /tukconnect-v2)
+        const basePath = import.meta.env.BASE_URL || '/';
+        // Construct full URL
+        const fullPath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+        // USE qr_code_value INSTEAD OF id FOR SECURITY AND UUID COMPATIBILITY
+        const qrUrl = `${baseUrl}${fullPath}/verify-visitor/${invite.qr_code_value}`;
+
+        // DEBUG: Log the QR URL
+        console.log('🔍 QR Code URL:', qrUrl);
+        console.log('📋 Invitation ID:', invite.id);
+        console.log('🔑 QR Value:', invite.qr_code_value);
+        console.log('🌐 Base URL:', baseUrl);
+        console.log('📁 Base Path:', basePath);
+
+        return qrUrl;
     }, []);
 
 
@@ -427,10 +449,11 @@ export const VisitorInvitationPage: FC = () => {
 
         if (inviteId) {
             try {
+                // Query by qr_code_value instead of id
                 const { data: invite, error } = await supabase
                     .from('visitor_invitations')
                     .select('*')
-                    .eq('id', inviteId)
+                    .eq('qr_code_value', inviteId)
                     .single();
 
                 if (error || !invite) {

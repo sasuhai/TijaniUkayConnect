@@ -128,6 +128,8 @@ export interface Settings {
   resident_address: string | null;
   information1: string | null;
   information2: string | null;
+  videolink: string | null;
+  banner1: string | null;
   updated_at: string;
   created_at: string;
 }

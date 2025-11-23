@@ -13,7 +13,7 @@ export const AuthPage: FC = () => {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
-    const switchPage = (newPage: 'login' | 'register' | 'reset') => {
+    const switchPage = (newPage: 'landing' | 'login' | 'register' | 'reset') => {
         setError('');
         setSuccessMessage('');
         setPage(newPage);
@@ -166,6 +166,17 @@ export const AuthPage: FC = () => {
                         </>
                     )}
                 </Card>
+                <div className="mt-8 text-center">
+                    <button
+                        onClick={() => switchPage('landing')}
+                        className="text-gray-500 hover:text-gray-800 text-sm font-medium flex items-center justify-center mx-auto transition-colors"
+                    >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Back to Home
+                    </button>
+                </div>
             </div>
         </div>
     );

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, FC } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { UserProfile } from './types';
-import { supabase } from './services/supabaseService';
+import { supabase, withTimeout } from './services/supabaseService';
 import { AuthContext } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { ToastContainer } from './components/ui/ToastContainer';
@@ -17,9 +17,37 @@ import { VerifyInvitationPage } from './pages/public/VerifyInvitationPage';
 const App: FC = () => {
     const [session, setSession] = useState<Session | null>(null);
 
-    // Initialize user from local storage to prevent loading spinner on page reload/return
+    // Helper to check if we have a valid Supabase auth token
+    const hasValidAuthToken = () => {
+        try {
+            // Check for Supabase auth token in localStorage
+            const authKey = Object.keys(localStorage).find(key =>
+                key.startsWith('sb-') && key.includes('-auth-token')
+            );
+            if (authKey) {
+                const authData = localStorage.getItem(authKey);
+                if (authData) {
+                    const parsed = JSON.parse(authData);
+                    // Check if token exists and hasn't expired
+                    return parsed && parsed.access_token && parsed.expires_at > Date.now() / 1000;
+                }
+            }
+            return false;
+        } catch {
+            return false;
+        }
+    };
+
+    // Initialize user from local storage ONLY if we have a valid auth token
     const [user, setUser] = useState<UserProfile | null>(() => {
         try {
+            // Only use cache if we have a valid auth token
+            if (!hasValidAuthToken()) {
+                console.log('No valid auth token - clearing cached user');
+                localStorage.removeItem('tijani_user_profile');
+                return null;
+            }
+
             const cached = localStorage.getItem('tijani_user_profile');
             return cached ? JSON.parse(cached) : null;
         } catch (e) {
@@ -28,8 +56,11 @@ const App: FC = () => {
         }
     });
 
-    // Initialize loading based on whether we have a cached user. 
+    // Initialize loading based on whether we have a cached user with valid token
     const [loading, setLoading] = useState<boolean>(() => {
+        if (!hasValidAuthToken()) {
+            return false; // No valid token, show login immediately
+        }
         const cached = localStorage.getItem('tijani_user_profile');
         return !cached;
     });
@@ -42,11 +73,17 @@ const App: FC = () => {
         }
 
         try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', currentSession.user.id)
-                .single();
+            const result = await withTimeout(
+                supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', currentSession.user.id)
+                    .single(),
+                8000, // 8 second timeout
+                'Profile fetch timed out'
+            );
+
+            const { data, error } = result as { data: any; error: any };
 
             if (error) {
                 // If it's a connection error, we KEEP the cached user (stale-while-revalidate).
@@ -104,9 +141,9 @@ const App: FC = () => {
                 console.log('App: getSession result', session);
 
                 if (!isMounted) return;
-                setSession(session);
 
                 if (session) {
+                    setSession(session);
                     // We have a session. 
                     // If we have a user in state (from cache), we show the app IMMEDIATELY (loading = false).
                     if (user) {
@@ -131,13 +168,21 @@ const App: FC = () => {
                     // Fetch fresh data in background.
                     await fetchUserProfile(session);
                 } else {
-                    // No session, clear everything
+                    // CRITICAL FIX: No session means we MUST clear everything
+                    // This prevents showing cached data without a valid session
+                    console.log('No session found - clearing all cached data');
+                    setSession(null);
                     setUser(null);
                     localStorage.removeItem('tijani_user_profile');
                     setLoading(false);
                 }
             } catch (error) {
                 console.error("Error during session initialization:", error);
+                // On error, also clear to be safe
+                setSession(null);
+                setUser(null);
+                localStorage.removeItem('tijani_user_profile');
+                setLoading(false);
             } finally {
                 clearTimeout(safetyTimeout);
                 if (isMounted && user) setLoading(false);

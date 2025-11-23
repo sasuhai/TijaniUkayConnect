@@ -61,6 +61,8 @@ export const ManageSettings: React.FC = () => {
                 resident_address: formData.get('resident_address') as string || null,
                 information1: formData.get('information1') as string || null,
                 information2: formData.get('information2') as string || null,
+                videolink: formData.get('videolink') as string || null,
+                banner1: formData.get('banner1') as string || null,
                 updated_at: new Date().toISOString(),
             };
 
@@ -138,6 +140,22 @@ export const ManageSettings: React.FC = () => {
                         name="resident_address"
                         label="Resident Address"
                         defaultValue={settings?.resident_address || ''}
+                    />
+
+                    <Input
+                        id="videolink"
+                        name="videolink"
+                        label="Video URL (YouTube)"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        defaultValue={settings?.videolink || ''}
+                    />
+
+                    <Input
+                        id="banner1"
+                        name="banner1"
+                        label="Banner Title"
+                        placeholder="Elevate Your Community Living"
+                        defaultValue={settings?.banner1 || ''}
                     />
 
                     <div className="space-y-2">

@@ -23,10 +23,11 @@ export const VerifyInvitationPage: FC = () => {
             }
 
             try {
+                // Query by qr_code_value instead of id
                 const { data, error } = await supabase
                     .from('visitor_invitations')
                     .select('*')
-                    .eq('id', id)
+                    .eq('qr_code_value', id) // id param from URL is now the qr_code_value
                     .single();
 
                 if (error || !data) {
@@ -85,8 +86,8 @@ export const VerifyInvitationPage: FC = () => {
             <Card className="w-full max-w-md p-8 shadow-xl rounded-2xl overflow-hidden relative">
                 {/* Status Banner */}
                 <div className={`absolute top-0 left-0 w-full h-2 ${status === 'valid' ? 'bg-green-500' :
-                        status === 'future' ? 'bg-blue-500' :
-                            status === 'expired' ? 'bg-yellow-500' : 'bg-red-500'
+                    status === 'future' ? 'bg-blue-500' :
+                        status === 'expired' ? 'bg-yellow-500' : 'bg-red-500'
                     }`} />
 
                 <div className="text-center mb-8">
@@ -120,8 +121,8 @@ export const VerifyInvitationPage: FC = () => {
                     )}
 
                     <h1 className={`text-3xl font-extrabold tracking-tight ${status === 'valid' ? 'text-green-600' :
-                            status === 'future' ? 'text-blue-600' :
-                                status === 'expired' ? 'text-yellow-600' : 'text-red-600'
+                        status === 'future' ? 'text-blue-600' :
+                            status === 'expired' ? 'text-yellow-600' : 'text-red-600'
                         }`}>
                         {status === 'valid' ? 'ACCESS GRANTED' :
                             status === 'future' ? 'FUTURE DATE!' :

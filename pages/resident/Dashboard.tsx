@@ -109,17 +109,19 @@ export const Dashboard: FC = () => {
 
     return (
         <div className="flex min-h-screen bg-brand-light-gray">
-            <aside className={`bg-brand-dark fixed inset-y-0 left-0 z-30 w-64 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0`}>
+            <aside className={`bg-brand-dark fixed inset-y-0 left-0 z-30 w-64 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col`}>
                 <SidebarHeader />
-                <nav className="mt-6">
-                    {navItems.map(item => (!item.adminOnly || isAdmin) && (
-                        item.isSeparator ? (
-                            <div key={item.id} className="h-4"></div>
-                        ) : (
-                            <NavLink key={item.id} label={item.label} icon={item.icon} isActive={currentPage === item.id} onClick={() => navigateTo(item.id as Page)} />
-                        )
-                    ))}
-                    <div className="absolute bottom-0 w-full p-4 border-t border-gray-700">
+                <nav className="flex-1 overflow-y-auto mt-6 pb-4">
+                    <div className="px-2">
+                        {navItems.map(item => (!item.adminOnly || isAdmin) && (
+                            item.isSeparator ? (
+                                <div key={item.id} className="h-4"></div>
+                            ) : (
+                                <NavLink key={item.id} label={item.label} icon={item.icon} isActive={currentPage === item.id} onClick={() => navigateTo(item.id as Page)} />
+                            )
+                        ))}
+                    </div>
+                    <div className="mt-4 pt-4 px-2 border-t border-gray-700">
                         <NavLink label="Logout" icon={<IconLogout className="h-6 w-6" />} isActive={false} onClick={handleLogout} />
                     </div>
                 </nav>
