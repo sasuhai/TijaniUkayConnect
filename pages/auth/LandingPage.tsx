@@ -1,7 +1,7 @@
 import React, { FC, useState, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
 import { supabase } from '../../services/supabaseService';
-import { Settings } from '../../types';
+import { Settings, Contact } from '../../types';
 import heroBg from '../../assets/landing-bg.jpg';
 import {
     IconQrCode,
@@ -17,6 +17,7 @@ import {
 
 export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = ({ onLogin, onRegister }) => {
     const [settings, setSettings] = useState<Settings | null>(null);
+    const [managementContact, setManagementContact] = useState<Contact | null>(null);
     const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
@@ -29,6 +30,18 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
 
                 if (data && data.length > 0) {
                     setSettings(data[0] as Settings);
+                }
+
+                const { data: contactData, error: contactError } = await supabase
+                    .from('contacts')
+                    .select('*')
+                    .or('role.ilike.%Management%,name.ilike.%Management%')
+                    .limit(1);
+
+                if (contactError) {
+                    console.error('Error fetching contact:', contactError);
+                } else if (contactData && contactData.length > 0) {
+                    setManagementContact(contactData[0] as Contact);
                 }
             } catch (e) {
                 // Silent error - will use fallback values
@@ -386,14 +399,54 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
                 </div>
             </section>
 
-            {/* --- STATS / TRUST SECTION --- */}
-            <section id="about" className="py-20 bg-brand-dark text-white">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-                        <StatItem number="500+" label="Residents" />
-                        <StatItem number="12k+" label="Visitors Managed" />
-                        <StatItem number="98%" label="Satisfaction" />
-                        <StatItem number="24/7" label="System Uptime" />
+            {/* --- COMMUNITY VALUES SECTION --- */}
+            <section id="about" className="py-20 bg-brand-dark text-white relative overflow-hidden">
+                {/* Decorative background elements */}
+                <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
+                    <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-brand-green blur-3xl"></div>
+                    <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-blue-500 blur-3xl"></div>
+                </div>
+
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Choose {appName}?</h2>
+                        <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+                            Building a harmonious and well-managed neighborhood through technology.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                        <div className="bg-white/5 backdrop-blur-sm p-6 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors">
+                            <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center mb-4 text-green-400">
+                                <IconQrCode className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2">Enhanced Security</h3>
+                            <p className="text-gray-400 text-sm">Streamlined visitor management ensures only authorized guests enter the premises.</p>
+                        </div>
+
+                        <div className="bg-white/5 backdrop-blur-sm p-6 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors">
+                            <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-4 text-blue-400">
+                                <IconHome className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2">Modern Convenience</h3>
+                            <p className="text-gray-400 text-sm">Book facilities and access documents instantly from your smartphone.</p>
+                        </div>
+
+                        <div className="bg-white/5 backdrop-blur-sm p-6 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors">
+                            <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-4 text-purple-400">
+                                <IconUsers className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2">Community First</h3>
+                            <p className="text-gray-400 text-sm">Stay connected with neighbors and management through polls and announcements.</p>
+                        </div>
+
+                        <div className="bg-white/5 backdrop-blur-sm p-6 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors">
+                            <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center mb-4 text-yellow-400">
+                                <IconAdmin className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2">Efficient Management</h3>
+                            <p className="text-gray-400 text-sm">Data-driven insights help the management office serve you better.</p>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -445,9 +498,10 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
                         <div>
                             <h4 className="text-white font-semibold mb-4">Contact</h4>
                             <ul className="space-y-2 text-sm">
-                                <li>Management Office</li>
-                                <li>support@tijaniukay.com</li>
-                                <li>+60 3-1234 5678</li>
+                                <li>{managementContact?.name || 'Management Office'}</li>
+                                {managementContact?.role && <li className="text-gray-500 text-xs">{managementContact.role}</li>}
+                                <li>{managementContact?.email || 'support@tijaniukay.com'}</li>
+                                <li>{managementContact?.phone || '+60 3-1234 5678'}</li>
                             </ul>
                         </div>
                     </div>
@@ -480,12 +534,5 @@ const CheckItem: FC<{ text: string }> = ({ text }) => (
             </svg>
         </div>
         <span className="text-gray-700 font-medium">{text}</span>
-    </div>
-);
-
-const StatItem: FC<{ number: string; label: string }> = ({ number, label }) => (
-    <div>
-        <div className="text-4xl md:text-5xl font-extrabold text-brand-green mb-2">{number}</div>
-        <div className="text-gray-400 font-medium uppercase tracking-wider text-sm">{label}</div>
     </div>
 );
