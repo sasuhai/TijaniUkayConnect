@@ -1,7 +1,7 @@
-import React, { FC, useState, useEffect } from 'react';
+import React, { FC, useState, useEffect, useRef } from 'react';
 import { Button } from '../../components/ui/Button';
 import { supabase } from '../../services/supabaseService';
-import { Settings, Contact } from '../../types';
+import { Settings, Contact, VideoAlbum } from '../../types';
 import heroBg from '../../assets/landing-bg.jpg';
 import {
     IconQrCode,
@@ -12,13 +12,52 @@ import {
     IconPoll,
     IconHome,
     IconUsers,
-    IconAdmin
+    IconAdmin,
+    IconChevronLeft,
+    IconChevronRight
 } from '../../components/icons';
 
 export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = ({ onLogin, onRegister }) => {
     const [settings, setSettings] = useState<Settings | null>(null);
     const [managementContact, setManagementContact] = useState<Contact | null>(null);
+    const [videos, setVideos] = useState<VideoAlbum[]>([]);
     const [scrolled, setScrolled] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const scroll = (direction: 'left' | 'right') => {
+        if (scrollContainerRef.current) {
+            const { current } = scrollContainerRef;
+            const scrollAmount = 350;
+            if (direction === 'left') {
+                current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            } else {
+                current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            }
+        }
+    };
+
+    useEffect(() => {
+        const scrollContainer = scrollContainerRef.current;
+        if (!scrollContainer || videos.length === 0) return;
+
+        let animationFrameId: number;
+
+        const autoScroll = () => {
+            if (!isPaused && scrollContainer) {
+                if (scrollContainer.scrollLeft >= scrollContainer.scrollWidth / 2) {
+                    scrollContainer.scrollLeft = 0;
+                } else {
+                    scrollContainer.scrollLeft += 1;
+                }
+            }
+            animationFrameId = requestAnimationFrame(autoScroll);
+        };
+
+        animationFrameId = requestAnimationFrame(autoScroll);
+
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [isPaused, videos]);
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -42,6 +81,16 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
                     console.error('Error fetching contact:', contactError);
                 } else if (contactData && contactData.length > 0) {
                     setManagementContact(contactData[0] as Contact);
+                }
+
+                const { data: videoData } = await supabase
+                    .from('video_albums')
+                    .select('*')
+                    .order('id', { ascending: false })
+                    .limit(15);
+
+                if (videoData) {
+                    setVideos(videoData as VideoAlbum[]);
                 }
             } catch (e) {
                 // Silent error - will use fallback values
@@ -229,33 +278,94 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
             {/* --- VIDEO TOUR SECTION --- */}
             <section className="py-20 bg-brand-dark relative overflow-hidden">
                 <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
                     <h2 className="text-3xl md:text-4xl font-bold text-white mb-8">Experience {communityName}</h2>
-                    <div className="relative w-full max-w-4xl mx-auto">
-                        <a
-                            href={`https://www.youtube.com/watch?v=${videoId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group relative block w-full pb-[56.25%] rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 bg-black"
+
+                    {videos.length > 0 ? (
+                        <div
+                            className="relative w-full group"
+                            onMouseEnter={() => setIsPaused(true)}
+                            onMouseLeave={() => setIsPaused(false)}
                         >
-                            <img
-                                src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
-                                alt={`${communityName} Video Tour`}
-                                className="absolute top-0 left-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300"
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 border-2 border-white/50">
-                                    <svg className="w-10 h-10 text-white fill-current" viewBox="0 0 24 24">
-                                        <path d="M8 5v14l11-7z" />
-                                    </svg>
+                            <button
+                                onClick={() => scroll('left')}
+                                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-sm"
+                                aria-label="Scroll left"
+                            >
+                                <IconChevronLeft className="w-6 h-6" />
+                            </button>
+
+                            <div
+                                ref={scrollContainerRef}
+                                className="flex overflow-x-auto gap-6 pb-8 px-4 scrollbar-hide snap-x snap-mandatory"
+                                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                            >
+                                {videos.map((video, index) => {
+                                    const videoId = getYoutubeId(video.description);
+                                    return (
+                                        <div key={`${video.id}-${index}`} className="w-[300px] md:w-[400px] flex-shrink-0 snap-center">
+                                            <a
+                                                href={video.description?.match(/https?:\/\/[^\s]+/) ? video.description.match(/https?:\/\/[^\s]+/)?.[0] : '#'}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="group relative block w-full pb-[56.25%] rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 bg-black"
+                                            >
+                                                <img
+                                                    src={video.thumbnail_url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
+                                                    alt={video.title}
+                                                    className="absolute top-0 left-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300"
+                                                />
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 border-2 border-white/50">
+                                                        <svg className="w-8 h-8 text-white fill-current" viewBox="0 0 24 24">
+                                                            <path d="M8 5v14l11-7z" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
+                                                    <h3 className="text-white font-bold text-sm truncate">{video.title}</h3>
+                                                </div>
+                                            </a>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <button
+                                onClick={() => scroll('right')}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-sm"
+                                aria-label="Scroll right"
+                            >
+                                <IconChevronRight className="w-6 h-6" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="relative w-full max-w-4xl mx-auto">
+                            <a
+                                href={`https://www.youtube.com/watch?v=${videoId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group relative block w-full pb-[56.25%] rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 bg-black"
+                            >
+                                <img
+                                    src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
+                                    alt={`${communityName} Video Tour`}
+                                    className="absolute top-0 left-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 border-2 border-white/50">
+                                        <svg className="w-10 h-10 text-white fill-current" viewBox="0 0 24 24">
+                                            <path d="M8 5v14l11-7z" />
+                                        </svg>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="absolute bottom-4 right-4 bg-black/70 text-white text-xs px-2 py-1 rounded font-medium flex items-center">
-                                <span className="w-2 h-2 bg-red-600 rounded-full mr-2 animate-pulse"></span>
-                                Watch on YouTube
-                            </div>
-                        </a>
-                    </div>
+                                <div className="absolute bottom-4 right-4 bg-black/70 text-white text-xs px-2 py-1 rounded font-medium flex items-center">
+                                    <span className="w-2 h-2 bg-red-600 rounded-full mr-2 animate-pulse"></span>
+                                    Watch on YouTube
+                                </div>
+                            </a>
+                        </div>
+                    )}
                     <p className="text-white/60 mt-6 text-sm">Watch the video to see our beautiful community in action.</p>
                 </div>
             </section>

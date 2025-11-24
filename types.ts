@@ -73,6 +73,7 @@ export interface PhotoAlbum {
   title: string;
   description: string;
   cover_image_url: string;
+  created_at: string;
 }
 
 export interface VideoAlbum {
@@ -80,6 +81,7 @@ export interface VideoAlbum {
   title: string;
   description: string;
   thumbnail_url: string;
+  created_at: string;
 }
 
 export type IssueStatus = 'New' | 'In Progress' | 'Resolved' | 'Closed';

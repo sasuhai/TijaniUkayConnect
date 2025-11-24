@@ -7,41 +7,32 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Card } from '../../components/ui/Card';
 
 export const PhotoAlbumPage: FC = () => {
-    // Initialize albums from local storage
-    const [albums, setAlbums] = useState<PhotoAlbum[]>(() => {
-        try {
-            const cached = localStorage.getItem('tijani_photo_albums');
-            return cached ? JSON.parse(cached) : [];
-        } catch (e) {
-            return [];
-        }
-    });
-    
-    // Optimistic loading state: If we have data, we are NOT fetching (visibly).
-    // We will still fetch in background, but we won't show the big spinner.
-    const [isFetching, setIsFetching] = useState(() => {
-        const cached = localStorage.getItem('tijani_photo_albums');
-        return !cached; 
-    });
+    // Initialize with empty array to force fresh fetch and avoid stale cache issues
+    const [albums, setAlbums] = useState<PhotoAlbum[]>([]);
+
+    const [isFetching, setIsFetching] = useState(true);
 
     useEffect(() => {
         let isMounted = true;
 
         const fetchAlbums = async () => {
-             // Safety timeout to ensure spinner eventually disappears if network hangs
-             const timeoutId = setTimeout(() => {
+            // Safety timeout to ensure spinner eventually disappears if network hangs
+            const timeoutId = setTimeout(() => {
                 if (isMounted) setIsFetching(false);
             }, 5000);
 
             try {
-                const { data, error } = await supabase.from('photo_albums').select('*');
-                
+                const { data, error } = await supabase
+                    .from('photo_albums')
+                    .select('*')
+                    .order('id', { ascending: false });
+
                 if (isMounted) {
                     if (error) throw error;
                     if (data) {
-                        const sortedAlbums = (data as PhotoAlbum[]).sort((a, b) => a.title.localeCompare(b.title));
-                        setAlbums(sortedAlbums);
-                        localStorage.setItem('tijani_photo_albums', JSON.stringify(sortedAlbums));
+                        setAlbums(data as PhotoAlbum[]);
+                        // Update cache for next time (optional, but good for offline)
+                        localStorage.setItem('tijani_photo_albums', JSON.stringify(data));
                     }
                 }
             } catch (error) {
@@ -58,8 +49,8 @@ export const PhotoAlbumPage: FC = () => {
         return () => {
             isMounted = false;
         };
-    }, []); 
-    
+    }, []);
+
     const getAlbumLink = (album: PhotoAlbum): string | null => {
         if (!album.description) return null;
         const match = album.description.match(urlRegex);
@@ -68,7 +59,7 @@ export const PhotoAlbumPage: FC = () => {
 
     const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
         e.currentTarget.src = 'https://placehold.co/480x360?text=Image+Not+Found';
-        e.currentTarget.onerror = null; 
+        e.currentTarget.onerror = null;
     };
 
     return (
@@ -98,14 +89,14 @@ export const PhotoAlbumPage: FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {albums.map(album => {
                         const albumLink = getAlbumLink(album);
-                        
+
                         const cardContent = (
                             <Card className="overflow-hidden h-full flex flex-col">
                                 <div className="relative w-full h-48">
-                                    <img 
-                                        src={album.cover_image_url} 
-                                        alt={album.title} 
-                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" 
+                                    <img
+                                        src={album.cover_image_url}
+                                        alt={album.title}
+                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                                         onError={handleImageError}
                                     />
                                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center">

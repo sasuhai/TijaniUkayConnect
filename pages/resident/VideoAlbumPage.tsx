@@ -7,34 +7,26 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Card } from '../../components/ui/Card';
 
 export const VideoAlbumPage: FC = () => {
-    // Initialize videos from local storage
-    const [videos, setVideos] = useState<VideoAlbum[]>(() => {
-        try {
-            const cached = localStorage.getItem('tijani_video_albums');
-            return cached ? JSON.parse(cached) : [];
-        } catch {
-            return [];
-        }
-    });
-    
-    // Optimistic loading state: If we have data, we are NOT fetching (visibly).
-    const [isFetching, setIsFetching] = useState(() => {
-        const cached = localStorage.getItem('tijani_video_albums');
-        return !cached;
-    });
+    // Initialize with empty array to force fresh fetch
+    const [videos, setVideos] = useState<VideoAlbum[]>([]);
+
+    const [isFetching, setIsFetching] = useState(true);
 
     useEffect(() => {
         let isMounted = true;
 
         const fetchVideos = async () => {
-            // Safety timeout to ensure spinner eventually disappears
+            // Safety timeout
             const timeoutId = setTimeout(() => {
                 if (isMounted) setIsFetching(false);
             }, 5000);
 
             try {
-                const { data, error } = await supabase.from('video_albums').select('*');
-                
+                const { data, error } = await supabase
+                    .from('video_albums')
+                    .select('*')
+                    .order('id', { ascending: false });
+
                 if (isMounted) {
                     if (error) throw error;
                     if (data) {
@@ -43,7 +35,7 @@ export const VideoAlbumPage: FC = () => {
                         localStorage.setItem('tijani_video_albums', JSON.stringify(dataArray));
                     }
                 }
-            } catch(error) {
+            } catch (error) {
                 console.error("Error fetching video albums:", error);
             } finally {
                 clearTimeout(timeoutId);
@@ -54,7 +46,7 @@ export const VideoAlbumPage: FC = () => {
         };
 
         fetchVideos();
-        
+
         return () => {
             isMounted = false;
         };
@@ -83,7 +75,7 @@ export const VideoAlbumPage: FC = () => {
                     </div>
                 )}
             </div>
-            
+
             {/* Only show full empty state spinner if we have NO data and are fetching */}
             {videos.length === 0 && isFetching ? (
                 <div className="flex flex-col items-center justify-center py-12">
@@ -98,14 +90,14 @@ export const VideoAlbumPage: FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {videos.map(video => {
                         const videoLink = getVideoLink(video);
-                        
+
                         const cardContent = (
                             <Card className="overflow-hidden h-full flex flex-col">
                                 <div className="relative w-full h-48">
-                                    <img 
-                                        src={video.thumbnail_url} 
-                                        alt={video.title} 
-                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" 
+                                    <img
+                                        src={video.thumbnail_url}
+                                        alt={video.title}
+                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                                         onError={handleImageError}
                                     />
                                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center">
