@@ -452,7 +452,7 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
                         </div>
                     </div>
                     <div className="border-t border-gray-800 pt-8 text-sm text-center">
-                        &copy; {new Date().getFullYear()} {communityName}. All rights reserved.
+                        {settings?.information2 || `© ${new Date().getFullYear()} ${communityName}. All rights reserved.`}
                     </div>
                 </div>
             </footer>

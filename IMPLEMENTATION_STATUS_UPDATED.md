@@ -49,12 +49,12 @@
 **Completed:**
 - ✅ Added `IssuePriority` type
 - ✅ Updated `Issue` interface
-- ✅ Created database migration file
+- ✅ Created database migration file (including storage)
+- ✅ Updated `IssueReportingPage.tsx` UI
+- ✅ Updated `ManageIssues.tsx` (admin) UI
 
 **Remaining Work:**
-1. Update `IssueReportingPage.tsx` UI
-2. Update `ManageIssues.tsx` (admin) UI
-3. Run SQL migration
+1. **Run SQL migration** (See `RUN_MIGRATION_INSTRUCTIONS.md`)
 
 ---
 
@@ -64,13 +64,13 @@
 **Status:** ⏳ NOT STARTED
 
 ### 7. Analytics Dashboard (#21)
-**Status:** ⏳ NOT STARTED
+**Status:** ✅ FULLY IMPLEMENTED (Data Scope Toggle added)
 
 ### 8. Monthly Reports (#46)
-**Status:** ⏳ NOT STARTED
+**Status:** 🚧 PARTIALLY IMPLEMENTED (Needs Data Scope Toggle)
 
 ### 9. Facility Usage Stats (#47)
-**Status:** ⏳ NOT STARTED
+**Status:** ✅ IMPLEMENTED (Inside Analytics Dashboard)
 
 ---
 

@@ -1,6 +1,6 @@
 
 import React, { FC, useState, useMemo } from 'react';
-import type { Issue, IssueStatus } from '../../types';
+import type { Issue, IssueStatus, IssuePriority } from '../../types';
 import { useAdminData } from '../../hooks/useAdminData';
 import { formatDate } from '../../utils/helpers';
 import { Card } from '../../components/ui/Card';
@@ -10,7 +10,7 @@ import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
 import { Spinner } from '../../components/ui/Spinner';
 import { Modal } from '../../components/ui/Modal';
-import { IconPencil, IconTrash } from '../../components/icons';
+import { IconPencil, IconTrash, IconDocument } from '../../components/icons';
 
 const StatusBadge: FC<{ status: IssueStatus }> = ({ status }) => {
     const statusClasses = {
@@ -22,6 +22,20 @@ const StatusBadge: FC<{ status: IssueStatus }> = ({ status }) => {
     return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusClasses[status]}`}>{status}</span>;
 };
 
+const PriorityBadge: FC<{ priority: IssuePriority }> = ({ priority }) => {
+    const priorityClasses = {
+        'Low': 'bg-gray-100 text-gray-700',
+        'Medium': 'bg-blue-100 text-blue-700',
+        'High': 'bg-orange-100 text-orange-700',
+        'Critical': 'bg-red-100 text-red-700',
+    };
+    return (
+        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${priorityClasses[priority || 'Medium']}`}>
+            {priority || 'Medium'}
+        </span>
+    );
+};
+
 export const ManageIssues: FC = () => {
     const textSearchColumns = useMemo(() => ['title', 'resident_name', 'description', 'category'], []);
     const { items: issues, loading, filter, setFilter, sort, handleSort, updateItem, deleteItem } = useAdminData<Issue>('issues', textSearchColumns, 'created_at');
@@ -30,7 +44,7 @@ export const ManageIssues: FC = () => {
     const [currentItem, setCurrentItem] = useState<Issue | null>(null);
     const [formData, setFormData] = useState<{ status: IssueStatus; admin_notes: string }>({ status: 'New', admin_notes: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
+
     const statuses: IssueStatus[] = ['New', 'In Progress', 'Resolved', 'Closed'];
 
     const openModal = (item: Issue) => {
@@ -55,12 +69,12 @@ export const ManageIssues: FC = () => {
         e.preventDefault();
         if (!currentItem) return;
         setIsSubmitting(true);
-        
+
         const updateData: Partial<Issue> = {
             status: formData.status,
             admin_notes: formData.admin_notes,
         };
-        
+
         if (currentItem.status !== 'Resolved' && formData.status === 'Resolved') {
             updateData.resolved_at = new Date().toISOString();
         }
@@ -84,19 +98,26 @@ export const ManageIssues: FC = () => {
                         <tr>
                             <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => handleSort('title')}>Issue / Resident</th>
                             <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => handleSort('category')}>Category</th>
+                            <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => handleSort('priority')}>Priority</th>
                             <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => handleSort('status')}>Status</th>
                             <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => handleSort('created_at')}>Reported</th>
                             <th scope="col" className="px-6 py-3">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {loading ? <tr><td colSpan={5} className="text-center p-4"><Spinner /></td></tr> : issues.map(issue => (
+                        {loading ? <tr><td colSpan={6} className="text-center p-4"><Spinner /></td></tr> : issues.map(issue => (
                             <tr key={issue.id} className="bg-white border-b">
                                 <td className="px-6 py-4 font-medium text-gray-900">
-                                    {issue.title}
-                                    <div className="font-normal text-gray-500">{issue.resident_name}</div>
+                                    <div className="flex items-center">
+                                        {issue.photo_url && <IconDocument className="h-4 w-4 text-gray-400 mr-2" />}
+                                        <div>
+                                            {issue.title}
+                                            <div className="font-normal text-gray-500">{issue.resident_name}</div>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td className="px-6 py-4">{issue.category}</td>
+                                <td className="px-6 py-4"><PriorityBadge priority={issue.priority} /></td>
                                 <td className="px-6 py-4"><StatusBadge status={issue.status} /></td>
                                 <td className="px-6 py-4">{formatDate(issue.created_at)}</td>
                                 <td className="px-6 py-4 flex space-x-2">
@@ -112,10 +133,23 @@ export const ManageIssues: FC = () => {
             <Modal isOpen={isModalOpen} onClose={closeModal} title="Update Issue">
                 {currentItem && (
                     <div className="space-y-4">
-                        <div>
-                            <h3 className="font-semibold text-lg">{currentItem.title}</h3>
-                            <p className="text-sm text-gray-500">Reported by {currentItem.resident_name} on {formatDate(currentItem.created_at)}</p>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h3 className="font-semibold text-lg">{currentItem.title}</h3>
+                                <p className="text-sm text-gray-500">Reported by {currentItem.resident_name} on {formatDate(currentItem.created_at)}</p>
+                            </div>
+                            <PriorityBadge priority={currentItem.priority} />
                         </div>
+
+                        {currentItem.photo_url && (
+                            <div>
+                                <p className="font-semibold mb-1">Attached Photo:</p>
+                                <a href={currentItem.photo_url} target="_blank" rel="noopener noreferrer">
+                                    <img src={currentItem.photo_url} alt="Issue" className="w-full max-h-60 object-contain rounded-lg border bg-gray-50" />
+                                </a>
+                            </div>
+                        )}
+
                         <div>
                             <p className="font-semibold">Description:</p>
                             <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded-md mt-1 max-h-40 overflow-y-auto">{currentItem.description}</p>
