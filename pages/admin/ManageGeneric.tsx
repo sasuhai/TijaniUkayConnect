@@ -34,6 +34,8 @@ export const ManageGeneric = <T extends { id: string }>({
     const [currentItem, setCurrentItem] = useState<T | null>(null);
     const [formData, setFormData] = useState<{ [key: string]: any }>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<T | null>(null);
 
     const openModal = (item: T | null = null) => {
         setCurrentItem(item);
@@ -41,7 +43,7 @@ export const ManageGeneric = <T extends { id: string }>({
             acc[field.id] = item ? (item as any)[field.id] || '' : '';
             return acc;
         }, {} as { [key: string]: any });
-        
+
         setFormData(dataForForm);
         setModalOpen(true);
     };
@@ -61,7 +63,7 @@ export const ManageGeneric = <T extends { id: string }>({
         setIsSubmitting(true);
 
         const dataToSubmit = { ...formData };
-        
+
         if (tableName === 'video_albums' && 'description' in dataToSubmit) {
             const getYouTubeThumbnail = (text: string): string | null => {
                 if (!text) return null;
@@ -71,7 +73,7 @@ export const ManageGeneric = <T extends { id: string }>({
             };
 
             const thumbnailUrl = getYouTubeThumbnail(dataToSubmit.description);
-            dataToSubmit.thumbnail_url = thumbnailUrl || `https://placehold.co/480x360?text=No+Preview`;
+            dataToSubmit.thumbnail_url = thumbnailUrl || `https://placehold.co/480x360/1f2937/white?text=No+Preview`;
 
             if (!thumbnailUrl && dataToSubmit.description) {
                 setTimeout(() => alert("Could not generate a thumbnail from the URL in the description. A placeholder image will be used. Please provide a valid YouTube 'watch' or 'youtu.be' link for automatic thumbnails."), 100);
@@ -80,10 +82,10 @@ export const ManageGeneric = <T extends { id: string }>({
 
         if (tableName === 'photo_albums') {
             if (!dataToSubmit.cover_image_url) {
-                dataToSubmit.cover_image_url = `https://placehold.co/480x360?text=No+Cover`;
+                dataToSubmit.cover_image_url = `https://placehold.co/480x360/6366f1/white?text=No+Cover`;
             }
         }
-        
+
         let success = false;
         if (currentItem) {
             success = await updateItem(currentItem.id, dataToSubmit as Partial<T>);
@@ -102,8 +104,8 @@ export const ManageGeneric = <T extends { id: string }>({
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">{title}</h2>
                 <div className="flex items-center space-x-4">
-                     <Input label="" id="search" placeholder="Search..." value={filter} onChange={e => setFilter(e.target.value)} />
-                     <Button onClick={() => openModal()}><IconPlus className="h-5 w-5 mr-1"/> Add New</Button>
+                    <Input label="" id="search" placeholder="Search..." value={filter} onChange={e => setFilter(e.target.value)} />
+                    <Button onClick={() => openModal()}><IconPlus className="h-5 w-5 mr-1" /> Add New</Button>
                 </div>
             </div>
             <div className="overflow-x-auto">
@@ -115,12 +117,12 @@ export const ManageGeneric = <T extends { id: string }>({
                         </tr>
                     </thead>
                     <tbody>
-                        {loading ? <tr><td colSpan={columns.length + 1} className="text-center p-4"><Spinner/></td></tr> : items.map((item) => (
+                        {loading ? <tr><td colSpan={columns.length + 1} className="text-center p-4"><Spinner /></td></tr> : items.map((item) => (
                             <tr key={item.id} className="bg-white border-b">
                                 {columns.map(col => (
                                     <td key={col.key} className="px-6 py-4 break-words">
                                         {col.key.includes('url') ? (
-                                             <a href={(item as any)[col.key]} target="_blank" rel="noopener noreferrer" className="text-brand-green hover:underline truncate max-w-xs block" onClick={e => e.stopPropagation()}>Link</a>
+                                            <a href={(item as any)[col.key]} target="_blank" rel="noopener noreferrer" className="text-brand-green hover:underline truncate max-w-xs block" onClick={e => e.stopPropagation()}>Link</a>
                                         ) : col.key === 'description' && (tableName === 'photo_albums' || tableName === 'video_albums') ? (
                                             <RenderWithLinks text={(item as any)[col.key]} />
                                         ) : (
@@ -129,36 +131,62 @@ export const ManageGeneric = <T extends { id: string }>({
                                     </td>
                                 ))}
                                 <td className="px-6 py-4 flex space-x-2">
-                                    <button onClick={() => openModal(item)} className="text-blue-600 hover:text-blue-800"><IconPencil className="h-5 w-5"/></button>
-                                    <button onClick={() => deleteItem(item.id)} className="text-red-600 hover:text-red-800"><IconTrash className="h-5 w-5"/></button>
+                                    <button onClick={() => openModal(item)} className="text-blue-600 hover:text-blue-800"><IconPencil className="h-5 w-5" /></button>
+                                    <button onClick={() => { setItemToDelete(item); setDeleteModalOpen(true); }} className="text-red-600 hover:text-red-800"><IconTrash className="h-5 w-5" /></button>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-             <Modal isOpen={isModalOpen} onClose={closeModal} title={currentItem ? `Edit ${title}` : `Add ${title}`}>
+            <Modal isOpen={isModalOpen} onClose={closeModal} title={currentItem ? `Edit ${title}` : `Add ${title}`}>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {formFields.map(field => {
                         const C = field.type === 'textarea' ? Textarea : Input;
-                        return <C 
-                            key={field.id} 
-                            id={field.id} 
-                            name={field.id} 
-                            label={field.label} 
-                            type={field.type} 
-                            value={formData[field.id] || ''} 
+                        return <C
+                            key={field.id}
+                            id={field.id}
+                            name={field.id}
+                            label={field.label}
+                            type={field.type}
+                            value={formData[field.id] || ''}
                             onChange={handleFormChange}
-                            required={!field.optional} 
+                            required={!field.optional}
                         />
                     })}
                     <div className="flex justify-end space-x-2 pt-4">
-                         <Button type="button" variant="secondary" onClick={closeModal}>Cancel</Button>
-                         <Button type="submit" disabled={isSubmitting}>
+                        <Button type="button" variant="secondary" onClick={closeModal}>Cancel</Button>
+                        <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting ? <Spinner /> : (currentItem ? 'Update' : 'Create')}
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            <Modal isOpen={isDeleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="Confirm Deletion">
+                {itemToDelete && (
+                    <div>
+                        <p className="mb-6 text-gray-700">
+                            Are you sure you want to delete <span className="font-bold">"{(itemToDelete as any).title || (itemToDelete as any).name || (itemToDelete as any).question || 'this item'}"</span>? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end space-x-4">
+                            <Button variant="secondary" onClick={() => setDeleteModalOpen(false)} disabled={isSubmitting}>
+                                Cancel
+                            </Button>
+                            <Button variant="danger" onClick={async () => {
+                                setIsSubmitting(true);
+                                const success = await deleteItem(itemToDelete.id);
+                                setIsSubmitting(false);
+                                if (success) {
+                                    setDeleteModalOpen(false);
+                                    setItemToDelete(null);
+                                }
+                            }} disabled={isSubmitting}>
+                                {isSubmitting ? <Spinner /> : 'Yes, Delete'}
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </Modal>
         </Card>
     );

@@ -7,7 +7,7 @@ export const useAdminData = <T extends { id: string }>(tableName: string, textSe
     const [items, setItems] = useState<T[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
-    const [sort, setSort] = useState<{ key: string; asc: boolean }>({ key: initialSortKey, asc: false });
+    const [sort, setSort] = useState<{ key: string; asc: boolean }>({ key: initialSortKey, asc: false }); // Changed to false for descending by default
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -51,8 +51,8 @@ export const useAdminData = <T extends { id: string }>(tableName: string, textSe
             const { error } = await supabase.from(tableName).insert([item]);
             if (error) {
                 if (error.code === 'PGRST205' || error.code === '42P01') {
-                     alert(`Unable to create item: The table '${tableName}' does not exist in the database.`);
-                     return false;
+                    alert(`Unable to create item: The table '${tableName}' does not exist in the database.`);
+                    return false;
                 }
                 console.error(`Error creating item in ${tableName}:`, error);
                 alert(`Error creating item in ${tableName}:\n${getErrorMessage(error)}`);
@@ -76,9 +76,9 @@ export const useAdminData = <T extends { id: string }>(tableName: string, textSe
 
             const { error } = await supabase.from(tableName).update(cleanItem).eq('id', id);
             if (error) {
-                 if (error.code === 'PGRST205' || error.code === '42P01') {
-                     alert(`Unable to update item: The table '${tableName}' does not exist in the database.`);
-                     return false;
+                if (error.code === 'PGRST205' || error.code === '42P01') {
+                    alert(`Unable to update item: The table '${tableName}' does not exist in the database.`);
+                    return false;
                 }
                 console.error(`Error updating item in ${tableName}:`, error);
                 alert(`Error updating item in ${tableName}:\n${getErrorMessage(error)}`);
@@ -94,23 +94,24 @@ export const useAdminData = <T extends { id: string }>(tableName: string, textSe
         }
     };
 
-    const deleteItem = async (id: string) => {
-        if (window.confirm('Are you sure you want to delete this item?')) {
-            try {
-                const { error } = await supabase.from(tableName).delete().eq('id', id);
-                if (error) {
-                    console.error(`Error deleting item in ${tableName}:`, error);
-                    alert(`Error deleting item in ${tableName}:\n${getErrorMessage(error)}`);
-                } else {
-                    await fetchData();
-                }
-            } catch (e) {
-                console.error(`An unexpected exception occurred while deleting an item in ${tableName}:`, e);
-                alert(`An unexpected exception occurred while deleting an item in ${tableName}:\n${getErrorMessage(e)}`);
+    const deleteItem = async (id: string): Promise<boolean> => {
+        try {
+            const { error } = await supabase.from(tableName).delete().eq('id', id);
+            if (error) {
+                console.error(`Error deleting item in ${tableName}:`, error);
+                alert(`Error deleting item in ${tableName}:\n${getErrorMessage(error)}`);
+                return false;
+            } else {
+                await fetchData();
+                return true;
             }
+        } catch (e) {
+            console.error(`An unexpected exception occurred while deleting an item in ${tableName}:`, e);
+            alert(`An unexpected exception occurred while deleting an item in ${tableName}:\n${getErrorMessage(e)}`);
+            return false;
         }
     };
-    
+
     const handleSort = (key: string) => {
         setSort(prevSort => ({
             key,

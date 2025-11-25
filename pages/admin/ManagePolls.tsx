@@ -32,6 +32,8 @@ export const ManagePolls: FC = () => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [pollToDelete, setPollToDelete] = useState<AdminPoll | null>(null);
 
     // Edit State
     const [editingPoll, setEditingPoll] = useState<AdminPoll | null>(null);
@@ -50,7 +52,7 @@ export const ManagePolls: FC = () => {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            
+
             // Sort options by ID or creation order to keep them stable in the UI
             const formattedData = (data as any[]).map(poll => ({
                 ...poll,
@@ -99,21 +101,21 @@ export const ManagePolls: FC = () => {
         setEditingPoll(poll);
         setQuestion(poll.question);
         setEndDate(toYyyyMmDd(new Date(poll.end_date)));
-        
+
         // Map existing options to form options
         setFormOptions(poll.options.map(o => ({ id: o.id, text: o.text })));
-        
+
         setModalOpen(true);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!question.trim()) {
             alert("Please enter a question.");
             return;
         }
-        
+
         const validOptions = formOptions.filter(o => o.text.trim().length > 0);
         if (validOptions.length < 2) {
             alert("Please provide at least 2 valid options.");
@@ -126,7 +128,7 @@ export const ManagePolls: FC = () => {
 
             if (editingPoll) {
                 // --- UPDATE EXISTING POLL ---
-                
+
                 // 1. Update Poll Details
                 const { error: pollError } = await supabase
                     .from('polls')
@@ -139,7 +141,7 @@ export const ManagePolls: FC = () => {
                 if (pollError) throw pollError;
 
                 // 2. Handle Options (Update, Insert, Delete)
-                
+
                 // Identify options to delete (existed in original but not in form)
                 const originalIds = editingPoll.options.map(o => o.id);
                 const currentIds = validOptions.map(o => o.id).filter(Boolean) as string[];
@@ -152,7 +154,7 @@ export const ManagePolls: FC = () => {
                         .from('poll_options')
                         .delete()
                         .in('id', idsToDelete);
-                    
+
                     if (deleteError) {
                         console.warn("Could not delete some options (likely due to existing votes):", deleteError);
                         alert("Some removed options could not be deleted because residents have already voted for them.");
@@ -209,15 +211,20 @@ export const ManagePolls: FC = () => {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!window.confirm("Are you sure you want to delete this poll? All votes will be lost.")) return;
+    const handleDelete = async () => {
+        if (!pollToDelete) return;
 
+        setIsSubmitting(true);
         try {
-            const { error } = await supabase.from('polls').delete().eq('id', id);
+            const { error } = await supabase.from('polls').delete().eq('id', pollToDelete.id);
             if (error) throw error;
             await fetchPolls();
+            setDeleteModalOpen(false);
+            setPollToDelete(null);
         } catch (error) {
             alert(`Failed to delete poll:\n${getErrorMessage(error)}`);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -261,7 +268,7 @@ export const ManagePolls: FC = () => {
                                         <button onClick={() => openEditModal(poll)} className="text-blue-600 hover:text-blue-800" title="Edit Poll">
                                             <IconPencil className="h-5 w-5" />
                                         </button>
-                                        <button onClick={() => handleDelete(poll.id)} className="text-red-600 hover:text-red-800" title="Delete Poll">
+                                        <button onClick={() => { setPollToDelete(poll); setDeleteModalOpen(true); }} className="text-red-600 hover:text-red-800" title="Delete Poll">
                                             <IconTrash className="h-5 w-5" />
                                         </button>
                                     </td>
@@ -274,22 +281,22 @@ export const ManagePolls: FC = () => {
 
             <Modal isOpen={isModalOpen} onClose={() => setModalOpen(false)} title={editingPoll ? "Edit Poll" : "Create New Poll"}>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <Input 
-                        label="Question" 
-                        id="poll-question" 
-                        value={question} 
-                        onChange={e => setQuestion(e.target.value)} 
-                        required 
+                    <Input
+                        label="Question"
+                        id="poll-question"
+                        value={question}
+                        onChange={e => setQuestion(e.target.value)}
+                        required
                         placeholder="e.g., What new facility do you want?"
                     />
-                    
-                    <Input 
-                        label="End Date" 
-                        id="poll-end-date" 
-                        type="date" 
-                        value={endDate} 
-                        onChange={e => setEndDate(e.target.value)} 
-                        required 
+
+                    <Input
+                        label="End Date"
+                        id="poll-end-date"
+                        type="date"
+                        value={endDate}
+                        onChange={e => setEndDate(e.target.value)}
+                        required
                         min={toYyyyMmDd(new Date())}
                     />
 
@@ -307,8 +314,8 @@ export const ManagePolls: FC = () => {
                                         required
                                     />
                                     {formOptions.length > 2 && (
-                                        <button 
-                                            type="button" 
+                                        <button
+                                            type="button"
                                             onClick={() => handleRemoveOption(idx)}
                                             className="text-red-500 hover:text-red-700"
                                             title="Remove option"
@@ -319,8 +326,8 @@ export const ManagePolls: FC = () => {
                                 </div>
                             ))}
                         </div>
-                        <button 
-                            type="button" 
+                        <button
+                            type="button"
                             onClick={handleAddOption}
                             className="mt-2 text-sm text-brand-green font-semibold hover:text-green-700 flex items-center"
                         >
@@ -335,6 +342,24 @@ export const ManagePolls: FC = () => {
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            <Modal isOpen={isDeleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="Confirm Deletion">
+                {pollToDelete && (
+                    <div>
+                        <p className="mb-6 text-gray-700">
+                            Are you sure you want to delete the poll <span className="font-bold">"{pollToDelete.question}"</span>? All votes will be lost and this action cannot be undone.
+                        </p>
+                        <div className="flex justify-end space-x-4">
+                            <Button variant="secondary" onClick={() => setDeleteModalOpen(false)} disabled={isSubmitting}>
+                                Cancel
+                            </Button>
+                            <Button variant="danger" onClick={handleDelete} disabled={isSubmitting}>
+                                {isSubmitting ? <Spinner /> : 'Yes, Delete'}
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </Modal>
         </Card>
     );
