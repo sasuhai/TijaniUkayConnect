@@ -202,7 +202,7 @@ export const FacilityBookingPage: FC = () => {
                 <BookingCalendar facilities={facilities} />
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-1 space-y-6">
+                    <div className="lg:col-span-1 order-1">
                         <Card className="p-4">
                             <div className="space-y-4">
                                 <div>
@@ -241,27 +241,9 @@ export const FacilityBookingPage: FC = () => {
                                 </div>
                             </div>
                         </Card>
-
-                        <Card className="p-4">
-                            <h3 className="text-xl font-semibold mb-4">My Upcoming Bookings</h3>
-                            {myUpcomingBookings.length > 0 ? (
-                                <ul className="space-y-3">
-                                    {myUpcomingBookings.map(booking => (
-                                        <li key={booking.id} className="p-3 bg-brand-light-gray rounded-lg flex justify-between items-center">
-                                            <div>
-                                                <p className="font-semibold text-brand-dark">{booking.facility?.name}</p>
-                                                <p className="text-sm text-gray-600">{formatDate(booking.booking_date)}, {booking.booking_slot}</p>
-                                            </div>
-                                            <Button variant="danger" className="text-xs !py-1 !px-2" onClick={() => openCancelModal(booking)}>Cancel</Button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className="text-gray-500 text-center py-4">You have no upcoming bookings.</p>
-                            )}
-                        </Card>
                     </div>
-                    <div className="lg:col-span-2">
+
+                    <div className="lg:col-span-2 lg:row-span-2 order-2">
                         <Card className="p-4">
                             <h3 className="text-xl font-semibold">Available Slots for {formatDateWithDay(selectedDate)}</h3>
                             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-gray-600 my-4 p-2 bg-gray-50 rounded-lg">
@@ -308,6 +290,27 @@ export const FacilityBookingPage: FC = () => {
                                     );
                                 })}
                             </div>
+                        </Card>
+                    </div>
+
+                    <div className="lg:col-span-1 order-3">
+                        <Card className="p-4">
+                            <h3 className="text-xl font-semibold mb-4">My Upcoming Bookings</h3>
+                            {myUpcomingBookings.length > 0 ? (
+                                <ul className="space-y-3">
+                                    {myUpcomingBookings.map(booking => (
+                                        <li key={booking.id} className="p-3 bg-brand-light-gray rounded-lg flex justify-between items-center">
+                                            <div>
+                                                <p className="font-semibold text-brand-dark">{booking.facility?.name}</p>
+                                                <p className="text-sm text-gray-600">{formatDate(booking.booking_date)}, {booking.booking_slot}</p>
+                                            </div>
+                                            <Button variant="danger" className="text-xs !py-1 !px-2" onClick={() => openCancelModal(booking)}>Cancel</Button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-gray-500 text-center py-4">You have no upcoming bookings.</p>
+                            )}
                         </Card>
                     </div>
                 </div>

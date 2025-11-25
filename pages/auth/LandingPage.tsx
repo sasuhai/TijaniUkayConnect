@@ -3,6 +3,7 @@ import { Button } from '../../components/ui/Button';
 import { supabase } from '../../services/supabaseService';
 import { Settings, Contact, VideoAlbum } from '../../types';
 import heroBg from '../../assets/landing-bg.jpg';
+import qrDemo from '../../assets/qr-demo.png';
 import {
     IconQrCode,
     IconCalendar,
@@ -45,10 +46,12 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
 
         const autoScroll = () => {
             if (!isPaused && scrollContainer) {
-                if (scrollContainer.scrollLeft >= scrollContainer.scrollWidth / 2) {
-                    scrollContainer.scrollLeft = 0;
-                } else {
-                    scrollContainer.scrollLeft += 1;
+                if (scrollContainer.scrollWidth > scrollContainer.clientWidth) {
+                    if (scrollContainer.scrollLeft >= scrollContainer.scrollWidth / 2) {
+                        scrollContainer.scrollLeft = 0;
+                    } else {
+                        scrollContainer.scrollLeft += 1;
+                    }
                 }
             }
             animationFrameId = requestAnimationFrame(autoScroll);
@@ -297,38 +300,24 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
 
                             <div
                                 ref={scrollContainerRef}
-                                className="flex overflow-x-auto gap-6 pb-8 px-4 scrollbar-hide snap-x snap-mandatory"
+                                className="flex overflow-x-auto gap-6 pb-8 px-4 scrollbar-hide"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                             >
-                                {videos.map((video, index) => {
-                                    const videoId = getYoutubeId(video.description);
-                                    return (
-                                        <div key={`${video.id}-${index}`} className="w-[300px] md:w-[400px] flex-shrink-0 snap-center">
-                                            <a
-                                                href={video.description?.match(/https?:\/\/[^\s]+/) ? video.description.match(/https?:\/\/[^\s]+/)?.[0] : '#'}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="group relative block w-full pb-[56.25%] rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 bg-black"
-                                            >
-                                                <img
-                                                    src={video.thumbnail_url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
-                                                    alt={video.title}
-                                                    className="absolute top-0 left-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300"
-                                                />
-                                                <div className="absolute inset-0 flex items-center justify-center">
-                                                    <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 border-2 border-white/50">
-                                                        <svg className="w-8 h-8 text-white fill-current" viewBox="0 0 24 24">
-                                                            <path d="M8 5v14l11-7z" />
-                                                        </svg>
-                                                    </div>
-                                                </div>
-                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
-                                                    <h3 className="text-white font-bold text-sm truncate">{video.title}</h3>
-                                                </div>
-                                            </a>
-                                        </div>
-                                    );
-                                })}
+                                {videos.map((video, index) => (
+                                    <VideoCard key={`set1-${video.id}-${index}`} video={video} />
+                                ))}
+
+                                <div className="flex flex-col items-center justify-center min-w-[200px] px-4">
+                                    <span className="text-2xl md:text-3xl italic font-light text-white/80 whitespace-nowrap">Enjoy!...</span>
+                                </div>
+
+                                {videos.map((video, index) => (
+                                    <VideoCard key={`set2-${video.id}-${index}`} video={video} />
+                                ))}
+
+                                <div className="flex flex-col items-center justify-center min-w-[200px] px-4">
+                                    <span className="text-2xl md:text-3xl italic font-light text-white/80 whitespace-nowrap">Enjoy!...</span>
+                                </div>
                             </div>
 
                             <button
@@ -432,13 +421,12 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
                                             <div className="text-xs font-medium">Bookings</div>
                                         </div>
                                     </div>
-                                    <div className="bg-white p-4 rounded-xl shadow-sm flex-1">
-                                        <div className="h-4 w-32 bg-gray-100 rounded mb-4" />
-                                        <div className="space-y-3">
-                                            <div className="h-12 bg-gray-50 rounded-lg border border-gray-100" />
-                                            <div className="h-12 bg-gray-50 rounded-lg border border-gray-100" />
-                                            <div className="h-12 bg-gray-50 rounded-lg border border-gray-100" />
-                                        </div>
+                                    <div className="bg-white p-3 rounded-xl shadow-sm flex-1 flex items-center justify-center overflow-hidden">
+                                        <img
+                                            src={qrDemo}
+                                            alt="Visitor QR Code Demo"
+                                            className="w-full h-auto object-contain"
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -646,3 +634,42 @@ const CheckItem: FC<{ text: string }> = ({ text }) => (
         <span className="text-gray-700 font-medium">{text}</span>
     </div>
 );
+
+const VideoCard: FC<{ video: VideoAlbum }> = ({ video }) => {
+    // Helper to extract YouTube ID (duplicated here to avoid prop drilling or moving the main one)
+    const getYoutubeId = (url: string | null | undefined) => {
+        if (!url) return 'xumK_60qpTw';
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : 'xumK_60qpTw';
+    };
+
+    const videoId = getYoutubeId(video.description);
+
+    return (
+        <div className="w-[300px] md:w-[400px] flex-shrink-0">
+            <a
+                href={video.description?.match(/https?:\/\/[^\s]+/) ? video.description.match(/https?:\/\/[^\s]+/)?.[0] : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group relative block w-full pb-[56.25%] rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 bg-black"
+            >
+                <img
+                    src={video.thumbnail_url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
+                    alt={video.title}
+                    className="absolute top-0 left-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300"
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 border-2 border-white/50">
+                        <svg className="w-8 h-8 text-white fill-current" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
+                    </div>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
+                    <h3 className="text-white font-bold text-sm truncate">{video.title}</h3>
+                </div>
+            </a>
+        </div>
+    );
+};
