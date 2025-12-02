@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tijani Ukay Connect</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'brand-dark': '#1a2e23',
+            'brand-green': '#166534',
+            'brand-light-green': '#22c55e',
+            'brand-gold': '#f59e0b',
+            'brand-light-gray': '#f3f4f6',
+          },
+          keyframes: {
+            'fade-in-down': {
+              '0%': { opacity: '0', transform: 'translateY(-20px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            'fade-in-up': {
+              '0%': { opacity: '0', transform: 'translateY(20px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            }
+          },
+          animation: {
+            'fade-in-down': 'fade-in-down 0.6s ease-out forwards',
+            'fade-in-up': 'fade-in-up 0.6s ease-out forwards',
+          },
+          boxShadow: {
+            'glow-green': '0 0 15px 5px rgba(34, 197, 94, 0.4)',
+          }
+        }
+      }
+    }
+  </script>
+
+
+  <script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/tukconnect-v2/assets/index-CrguS_Ls.js"></script>
+  <link rel="stylesheet" crossorigin href="/tukconnect-v2/assets/index-CcMu8E0X.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>
