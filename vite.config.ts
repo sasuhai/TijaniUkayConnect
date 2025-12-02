@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-    base: '/tukconnect-v2/',   // <-- ADD THIS LINE HERE
+    base: '/TijaniUkayConnect-Gemini/',   // <-- ADD THIS LINE HERE
 
       server: {
         port: 3000,
