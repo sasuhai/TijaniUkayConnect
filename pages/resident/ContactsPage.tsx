@@ -1,6 +1,6 @@
 
 import React, { FC, useState, useEffect } from 'react';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import type { Contact } from '../../types';
 import { Spinner } from '../../components/ui/Spinner';
 import { Card } from '../../components/ui/Card';
@@ -24,7 +24,7 @@ export const ContactsPage: FC = () => {
             }, 5000);
 
             try {
-                const { data, error } = await supabase.from('contacts').select('*');
+                const { data, error } = await firebase.getContacts();
                 if (isMounted) {
                     if (data) {
                         setContacts(data as Contact[]);

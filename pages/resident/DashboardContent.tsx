@@ -1,8 +1,7 @@
-
 import React, { FC, useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Page } from './Dashboard';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import type { Announcement, VisitorInvitation, Issue, IssueStatus, Facility } from '../../types';
 import { toYyyyMmDd, formatDateTime, formatDate } from '../../utils/helpers';
 import { Card } from '../../components/ui/Card';
@@ -21,14 +20,15 @@ const IssueStatusBadge: FC<{ status: IssueStatus }> = ({ status }) => {
 
 export const DashboardContent: FC<{ setCurrentPage: (page: Page) => void }> = ({ setCurrentPage }) => {
     const { user } = useAuth();
-    
+
     type NextBooking = {
         id: string;
         booking_date: string;
         booking_slot: string;
-        facilities: { name: string } | null;
+        facility_id: string;
+        facilityName?: string;
     };
-    
+
     type ActivePollData = {
         question: string;
         topOption: string;
@@ -39,7 +39,7 @@ export const DashboardContent: FC<{ setCurrentPage: (page: Page) => void }> = ({
     const [nextBookings, setNextBookings] = useState<NextBooking[]>([]);
     const [upcomingVisitors, setUpcomingVisitors] = useState<Pick<VisitorInvitation, 'id' | 'visitor_name' | 'visit_date_time'>[]>([]);
     const [recentIssues, setRecentIssues] = useState<Issue[]>([]);
-    const [facilityAvailability, setFacilityAvailability] = useState<{name: string, slotsLeft: number}[]>([]);
+    const [facilityAvailability, setFacilityAvailability] = useState<{ name: string, slotsLeft: number }[]>([]);
     const [activePoll, setActivePoll] = useState<ActivePollData | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -49,12 +49,11 @@ export const DashboardContent: FC<{ setCurrentPage: (page: Page) => void }> = ({
 
         const fetchDashboardData = async () => {
             // Only show loading spinner if we don't have data yet (initial load)
-            // If we are just refreshing in background, keep showing current data.
             if (latestAnnouncements.length === 0 && nextBookings.length === 0) {
                 setLoading(true);
             }
-            
-            const timeoutPromise = new Promise<void>((_, reject) => 
+
+            const timeoutPromise = new Promise<void>((_, reject) =>
                 setTimeout(() => reject(new Error("Fetch timeout")), 5000)
             );
 
@@ -64,73 +63,116 @@ export const DashboardContent: FC<{ setCurrentPage: (page: Page) => void }> = ({
 
                 await Promise.race([
                     (async () => {
+                        // Fetch all data in parallel
                         const [announcementRes, bookingsRes, visitorRes, issuesRes, facilitiesRes, todaysBookingsRes, pollsRes] = await Promise.all([
-                            supabase.from('announcements').select('id,title,content').order('created_at', { ascending: false }).limit(4),
-                            supabase.from('bookings').select('id,booking_date, booking_slot, facilities(name)').eq('resident_id', user.id).gte('booking_date', today).order('booking_date').order('booking_slot').limit(10),
-                            supabase.from('visitor_invitations').select('id,visitor_name, visit_date_time').eq('resident_id', user.id).gte('visit_date_time', nowISO).order('visit_date_time').limit(4),
-                            supabase.from('issues').select('*').eq('resident_id', user.id).order('created_at', { ascending: false }).limit(3),
-                            supabase.from('facilities').select('id, name'),
-                            supabase.from('bookings').select('facility_id').eq('booking_date', today),
-                            supabase.from('polls').select('id, question').gte('end_date', nowISO).limit(1)
+                            firebase.getAnnouncements(),
+                            firebase.getBookings(undefined, user.id),
+                            firebase.getVisitorInvitations(user.id),
+                            firebase.getIssues(user.id),
+                            firebase.getFacilities(),
+                            firebase.getBookings(),
+                            firebase.getPolls()
                         ]);
 
                         if (!isMounted) return;
 
-                        if (announcementRes.data) setLatestAnnouncements(announcementRes.data);
-
-                        if (bookingsRes.data) {
-                            const now = new Date();
-                            const upcomingBookings = bookingsRes.data.filter(b => {
-                                const bookingDateTime = new Date(`${b.booking_date}T${b.booking_slot}`);
-                                return bookingDateTime > now;
-                            });
-                            setNextBookings(upcomingBookings.slice(0, 3) as unknown as NextBooking[]);
+                        // Process announcements - already sorted in Firebase service
+                        if (announcementRes.data) {
+                            setLatestAnnouncements(announcementRes.data.slice(0, 4).map((a: any) => ({
+                                id: a.id,
+                                title: a.title,
+                                content: a.content
+                            })));
                         }
-                        
-                        if (visitorRes.data) setUpcomingVisitors(visitorRes.data);
-                        
-                        if (issuesRes.data) setRecentIssues(issuesRes.data as Issue[]);
 
+                        // Process bookings - filter future bookings
+                        if (bookingsRes.data && facilitiesRes.data) {
+                            const now = new Date();
+                            const facilityMap = new Map<string, string>(facilitiesRes.data.map((f: any) => [f.id, f.name] as [string, string]));
+
+                            const upcomingBookings = bookingsRes.data
+                                .filter((b: any) => {
+                                    const bookingDate = b.booking_date >= today;
+                                    if (!bookingDate) return false;
+                                    const bookingDateTime = new Date(`${b.booking_date}T${b.booking_slot}`);
+                                    return bookingDateTime > now;
+                                })
+                                .map((b: any) => ({
+                                    ...b,
+                                    facilityName: facilityMap.get(b.facility_id)
+                                }));
+
+                            setNextBookings(upcomingBookings.slice(0, 3));
+                        }
+
+                        // Process visitors - filter upcoming
+                        if (visitorRes.data) {
+                            const upcoming = visitorRes.data
+                                .filter((v: any) => v.visit_date_time >= nowISO)
+                                .slice(0, 4);
+                            setUpcomingVisitors(upcoming);
+                        }
+
+                        // Process issues - already sorted in Firebase service
+                        if (issuesRes.data) {
+                            setRecentIssues(issuesRes.data.slice(0, 3) as Issue[]);
+                        }
+
+                        // Process facility availability for today
                         if (facilitiesRes.data && todaysBookingsRes.data) {
                             const totalSlotsPerDay = 18; // 6:00 to 23:00
-                            const availability = (facilitiesRes.data as Facility[]).map(facility => {
-                                const bookingsCount = todaysBookingsRes.data.filter((b: any) => b.facility_id === facility.id).length;
+                            const todaysOnly = todaysBookingsRes.data.filter((b: any) => b.booking_date === today);
+
+                            const availability = facilitiesRes.data.map((facility: any) => {
+                                const bookingsCount = todaysOnly.filter((b: any) => b.facility_id === facility.id).length;
                                 const slotsLeft = Math.max(0, totalSlotsPerDay - bookingsCount);
                                 return { name: facility.name, slotsLeft };
                             });
                             setFacilityAvailability(availability.slice(0, 4));
                         }
 
+                        // Process polls - find active poll and calculate votes
                         if (pollsRes.data && pollsRes.data.length > 0) {
-                            const poll = pollsRes.data[0];
-                            const { data: options } = await supabase.from('poll_options').select('id, text').eq('poll_id', poll.id);
-                            
-                            if (options && options.length > 0) {
-                                let maxVotes = -1;
-                                let topOptionText = '';
-                                let totalVotes = 0;
-                                
-                                for (const opt of options) {
-                                    const { count } = await supabase.from('poll_votes').select('*', { count: 'exact', head: true }).eq('option_id', opt.id);
-                                    const votes = count || 0;
-                                    totalVotes += votes;
-                                    if (votes > maxVotes) {
-                                        maxVotes = votes;
-                                        topOptionText = opt.text;
+                            // Find active polls (end_date >= now)
+                            const activePolls = pollsRes.data.filter((p: any) => {
+                                return p.end_date && new Date(p.end_date) >= new Date(nowISO);
+                            });
+
+                            if (activePolls.length > 0) {
+                                const poll = activePolls[0];
+                                // Get all poll votes
+                                const { data: allVotes } = await firebase.getPollVotes(poll.id);
+
+                                if (poll.options && poll.options.length > 0) {
+                                    // Count votes per option
+                                    const voteCounts = new Map();
+                                    poll.options.forEach((opt: any) => voteCounts.set(opt.id, 0));
+
+                                    if (allVotes) {
+                                        allVotes.forEach((vote: any) => {
+                                            const current = voteCounts.get(vote.option_id) || 0;
+                                            voteCounts.set(vote.option_id, current + 1);
+                                        });
                                     }
-                                }
-                                
-                                if (totalVotes > 0) {
+
+                                    // Find top option
+                                    let maxVotes = 0;
+                                    let topOptionText = poll.options[0].text;
+                                    let totalVotes = 0;
+
+                                    poll.options.forEach((opt: any) => {
+                                        const votes = voteCounts.get(opt.id) || 0;
+                                        totalVotes += votes;
+                                        if (votes > maxVotes) {
+                                            maxVotes = votes;
+                                            topOptionText = opt.text;
+                                        }
+                                    });
+
                                     setActivePoll({
                                         question: poll.question,
                                         topOption: topOptionText,
-                                        topOptionPercentage: Math.round((maxVotes / totalVotes) * 100)
-                                    });
-                                } else {
-                                     setActivePoll({
-                                        question: poll.question,
-                                        topOption: options[0].text,
-                                        topOptionPercentage: 0
+                                        topOptionPercentage: totalVotes > 0 ? Math.round((maxVotes / totalVotes) * 100) : 0
                                     });
                                 }
                             }
@@ -148,10 +190,9 @@ export const DashboardContent: FC<{ setCurrentPage: (page: Page) => void }> = ({
 
         fetchDashboardData();
         return () => { isMounted = false; };
-        // DEPENDENCY CHANGE: user?.id instead of user. 
-        // This prevents re-fetching when the user object reference changes but the user is the same.
-    }, [user?.id]); 
-    
+    }, [user?.id]);
+
+
     const SkeletonLoader: FC = () => (
         <div className="space-y-3 animate-pulse">
             <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -164,7 +205,7 @@ export const DashboardContent: FC<{ setCurrentPage: (page: Page) => void }> = ({
         <div>
             <h1 className="text-3xl font-bold text-brand-dark mb-2">Welcome, {user?.full_name}!</h1>
             <p className="text-lg text-gray-600">Here's what's happening in your community today.</p>
-            
+
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Row 1 */}
                 <Card className="p-6 flex flex-col">
@@ -197,13 +238,13 @@ export const DashboardContent: FC<{ setCurrentPage: (page: Page) => void }> = ({
 
                 <Card className="p-6 flex flex-col">
                     <h3 className="font-bold text-xl mb-4 text-brand-green">Next Bookings</h3>
-                     <div className="flex-grow">
-                         {loading ? <SkeletonLoader /> : (
+                    <div className="flex-grow">
+                        {loading ? <SkeletonLoader /> : (
                             nextBookings.length > 0 ? (
                                 <ul className="space-y-2">
-                                    {nextBookings.map(b => 
+                                    {nextBookings.map(b =>
                                         <li key={b.id} className="text-gray-700 text-sm">
-                                            <span className="font-semibold">{b.facilities?.name}</span> on {formatDateTime(b.booking_date + 'T' + b.booking_slot)}
+                                            <span className="font-semibold">{b.facilityName}</span> on {formatDateTime(b.booking_date + 'T' + b.booking_slot)}
                                         </li>
                                     )}
                                 </ul>
@@ -219,11 +260,11 @@ export const DashboardContent: FC<{ setCurrentPage: (page: Page) => void }> = ({
 
                 <Card className="p-6 flex flex-col">
                     <h3 className="font-bold text-xl mb-4 text-brand-green">Upcoming Visitors</h3>
-                     <div className="flex-grow">
-                         {loading ? <SkeletonLoader /> : (
+                    <div className="flex-grow">
+                        {loading ? <SkeletonLoader /> : (
                             upcomingVisitors.length > 0 ? (
                                 <ul className="space-y-2">
-                                    {upcomingVisitors.slice(0, 3).map(v => 
+                                    {upcomingVisitors.slice(0, 3).map(v =>
                                         <li key={v.id} className="text-gray-700">
                                             <span className="font-semibold">{v.visitor_name}</span> on {formatDate(v.visit_date_time)}
                                         </li>
@@ -293,7 +334,7 @@ export const DashboardContent: FC<{ setCurrentPage: (page: Page) => void }> = ({
                                 <p className="font-semibold text-brand-dark mb-2">{activePoll.question}</p>
                                 <div className="space-y-1">
                                     <div className="w-full bg-gray-300 rounded-full h-2">
-                                        <div className="bg-brand-green h-2 rounded-full" style={{width: `${activePoll.topOptionPercentage}%`}}></div>
+                                        <div className="bg-brand-green h-2 rounded-full" style={{ width: `${activePoll.topOptionPercentage}%` }}></div>
                                     </div>
                                     <p className="text-xs text-gray-500 text-right">{activePoll.topOptionPercentage}% votes for '{activePoll.topOption}'</p>
                                 </div>

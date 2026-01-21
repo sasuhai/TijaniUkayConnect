@@ -1,7 +1,7 @@
 
 import React, { FC, useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import { Spinner } from '../../components/ui/Spinner';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -40,11 +40,11 @@ export const ProfilePage: FC = () => {
         setIsSubmittingProfile(true);
         setProfileMessage({ type: '', text: '' });
 
-        const { error } = await supabase.from('profiles').update({
+        const { error } = await firebase.updateProfile(user.id, {
             full_name: profileData.fullName,
             address: profileData.address,
             phone: profileData.phone,
-        }).eq('id', user.id);
+        });
 
         if (error) {
             setProfileMessage({ type: 'error', text: 'Failed to update profile: ' + error.message });
@@ -71,13 +71,19 @@ export const ProfilePage: FC = () => {
             return;
         }
 
-        const { error } = await supabase.auth.updateUser({ password: passwordData.newPassword });
-
-        if (error) {
+        // Firebase password update
+        try {
+            const { updatePassword } = await import('firebase/auth');
+            const user = firebase.getCurrentUser();
+            if (user) {
+                await updatePassword(user, passwordData.newPassword);
+                setPasswordMessage({ type: 'success', text: 'Password changed successfully!' });
+                setPasswordData({ newPassword: '', confirmPassword: '' });
+            } else {
+                setPasswordMessage({ type: 'error', text: 'User not authenticated.' });
+            }
+        } catch (error: any) {
             setPasswordMessage({ type: 'error', text: 'Failed to change password: ' + error.message });
-        } else {
-            setPasswordMessage({ type: 'success', text: 'Password changed successfully!' });
-            setPasswordData({ newPassword: '', confirmPassword: '' });
         }
         setIsSubmittingPassword(false);
     };
@@ -99,7 +105,7 @@ export const ProfilePage: FC = () => {
                             <p className={`text-sm ${profileMessage.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>{profileMessage.text}</p>
                         )}
                         <div className="pt-2">
-                             <Button type="submit" disabled={isSubmittingProfile}>
+                            <Button type="submit" disabled={isSubmittingProfile}>
                                 {isSubmittingProfile ? <Spinner /> : 'Save Changes'}
                             </Button>
                         </div>
@@ -110,7 +116,7 @@ export const ProfilePage: FC = () => {
                     <form onSubmit={handlePasswordSubmit} className="space-y-4">
                         <Input label="New Password" id="newPassword" name="newPassword" type="password" value={passwordData.newPassword} onChange={handlePasswordChange} required />
                         <Input label="Confirm New Password" id="confirmPassword" name="confirmPassword" type="password" value={passwordData.confirmPassword} onChange={handlePasswordChange} required />
-                         {passwordMessage.text && (
+                        {passwordMessage.text && (
                             <p className={`text-sm ${passwordMessage.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>{passwordMessage.text}</p>
                         )}
                         <div className="pt-2">

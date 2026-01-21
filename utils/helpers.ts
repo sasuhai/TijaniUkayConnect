@@ -7,10 +7,20 @@ export const toYyyyMmDd = (date: Date): string => {
     return `${yyyy}-${mm}-${dd}`;
 };
 
-export const formatDateWithDay = (isoString: string | null | undefined): string => {
-    if (!isoString) return '';
+export const formatDateWithDay = (input: string | null | undefined | any): string => {
+    if (!input) return '';
     try {
-        const date = new Date(isoString.includes('T') ? isoString : `${isoString}T00:00:00`);
+        // Handle Firebase Timestamp objects
+        let date: Date;
+        if (input && typeof input === 'object' && input.toDate) {
+            date = input.toDate(); // Firebase Timestamp
+        } else if (input && typeof input === 'object' && input.seconds) {
+            date = new Date(input.seconds * 1000); // Firebase Timestamp structure
+        } else {
+            const isoString = String(input);
+            date = new Date(isoString.includes('T') ? isoString : `${isoString}T00:00:00`);
+        }
+
         const dayOfWeek = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
         const formattedDate = date.toLocaleDateString('en-GB'); // dd/mm/yyyy
         return `${formattedDate} (${dayOfWeek})`;
@@ -19,10 +29,19 @@ export const formatDateWithDay = (isoString: string | null | undefined): string 
     }
 };
 
-export const formatDateTime = (isoString: string | null | undefined): string => {
-    if (!isoString) return '';
+export const formatDateTime = (input: string | null | undefined | any): string => {
+    if (!input) return '';
     try {
-        const date = new Date(isoString);
+        // Handle Firebase Timestamp objects
+        let date: Date;
+        if (input && typeof input === 'object' && input.toDate) {
+            date = input.toDate(); // Firebase Timestamp
+        } else if (input && typeof input === 'object' && input.seconds) {
+            date = new Date(input.seconds * 1000); // Firebase Timestamp structure
+        } else {
+            date = new Date(String(input));
+        }
+
         const formattedDate = date.toLocaleDateString('en-GB'); // dd/mm/yyyy
         const formattedTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
         return `${formattedDate}, ${formattedTime}`;
@@ -31,10 +50,20 @@ export const formatDateTime = (isoString: string | null | undefined): string => 
     }
 };
 
-export const formatDate = (isoString: string | null | undefined): string => {
-    if (!isoString) return '';
-     try {
-        const date = new Date(isoString.includes('T') ? isoString : `${isoString}T00:00:00`);
+export const formatDate = (input: string | null | undefined | any): string => {
+    if (!input) return '';
+    try {
+        // Handle Firebase Timestamp objects
+        let date: Date;
+        if (input && typeof input === 'object' && input.toDate) {
+            date = input.toDate(); // Firebase Timestamp
+        } else if (input && typeof input === 'object' && input.seconds) {
+            date = new Date(input.seconds * 1000); // Firebase Timestamp structure
+        } else {
+            const isoString = String(input);
+            date = new Date(isoString.includes('T') ? isoString : `${isoString}T00:00:00`);
+        }
+
         return date.toLocaleDateString('en-GB'); // dd/mm/yyyy
     } catch (e) {
         return 'Invalid Date';
@@ -69,9 +98,9 @@ export const RenderWithLinks: FC<{ text: string | undefined | null }> = ({ text 
 
 export const getErrorMessage = (error: unknown): string => {
     if (!error) return 'Unknown error';
-    
+
     if (typeof error === 'string') return error;
-    
+
     if (error instanceof Error) return error.message;
 
     if (typeof error === 'object' && error !== null) {
@@ -80,7 +109,7 @@ export const getErrorMessage = (error: unknown): string => {
         if (anyError.message) return anyError.message;
         if (anyError.error_description) return anyError.error_description;
         if (anyError.details) return anyError.details;
-        
+
         try {
             const json = JSON.stringify(error, null, 2);
             // Avoid returning empty JSON objects if possible

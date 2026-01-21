@@ -1,6 +1,6 @@
 import React, { FC, useState, useEffect, useRef } from 'react';
 import { Button } from '../../components/ui/Button';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import { Settings, Contact, VideoAlbum } from '../../types';
 import heroBg from '../../assets/landing-bg.jpg';
 import qrDemo from '../../assets/qr-demo.png';
@@ -65,35 +65,30 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const { data } = await supabase
-                    .from('settings')
-                    .select('resident_name, resident_address, app_name, information1, information2, videolink, banner1')
-                    .limit(1);
-
-                if (data && data.length > 0) {
-                    setSettings(data[0] as Settings);
+                // Fetch settings
+                const { data: settingsData } = await firebase.getSettings();
+                if (settingsData) {
+                    setSettings(settingsData as Settings);
                 }
 
-                const { data: contactData, error: contactError } = await supabase
-                    .from('contacts')
-                    .select('*')
-                    .or('role.ilike.%Management%,name.ilike.%Management%')
-                    .limit(1);
-
-                if (contactError) {
-                    console.error('Error fetching contact:', contactError);
-                } else if (contactData && contactData.length > 0) {
-                    setManagementContact(contactData[0] as Contact);
+                // Fetch management contact
+                const { data: contactsData } = await firebase.getContacts();
+                if (contactsData && contactsData.length > 0) {
+                    // Find management contact
+                    const mgmtContact = contactsData.find((c: any) =>
+                        c.role?.toLowerCase().includes('management') ||
+                        c.name?.toLowerCase().includes('management')
+                    );
+                    if (mgmtContact) {
+                        setManagementContact(mgmtContact as Contact);
+                    }
                 }
 
-                const { data: videoData } = await supabase
-                    .from('video_albums')
-                    .select('*')
-                    .order('id', { ascending: false })
-                    .limit(15);
-
+                // Fetch videos
+                const { data: videoData } = await firebase.getVideoAlbums();
                 if (videoData) {
-                    setVideos(videoData as VideoAlbum[]);
+                    // Take latest 15 videos
+                    setVideos((videoData as VideoAlbum[]).slice(0, 15));
                 }
             } catch (e) {
                 // Silent error - will use fallback values

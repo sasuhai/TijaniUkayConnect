@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useCallback, useEffect, FC } from 'react';
 import type { Facility, Booking } from '../../types';
 import { ManageGeneric } from './ManageGeneric';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
 import { Spinner } from '../../components/ui/Spinner';
 import { Card } from '../../components/ui/Card';
@@ -22,8 +22,8 @@ const ManageBookings: FC = () => {
         setLoading(true);
         try {
             const [bookingsRes, facilitiesRes] = await Promise.all([
-                supabase.from('bookings').select('*'),
-                supabase.from('facilities').select('id, name')
+                firebase.getBookings(),
+                firebase.getFacilities()
             ]);
 
             if (bookingsRes.error) throw bookingsRes.error;
@@ -44,17 +44,23 @@ const ManageBookings: FC = () => {
     }, [fetchData]);
 
     const sortedBookings = useMemo(() => {
-        const facilityMap = new Map(facilities.map(f => [f.id, f.name]));
+        // Create map with both string and number keys to handle type mismatch
+        const facilityMap = new Map<any, string>(facilities.flatMap(f => [
+            [f.id, f.name],
+            [String(f.id), f.name],
+            [Number(f.id), f.name]
+        ] as any));
+
         const bookingsWithFacilityName = bookings.map(b => ({
             ...b,
-            facilityName: facilityMap.get(b.facility_id) || 'Unknown Facility'
+            facilityName: facilityMap.get(b.facility_id) || facilityMap.get(String(b.facility_id)) || 'Unknown Facility'
         }));
 
         return bookingsWithFacilityName.sort((a, b) => {
             if (sort.key === 'facilityName') {
                 return sort.asc ? a.facilityName.localeCompare(b.facilityName) : b.facilityName.localeCompare(a.facilityName);
             }
-            
+
             const aVal = (a as any)[sort.key];
             const bVal = (b as any)[sort.key];
 
@@ -63,7 +69,7 @@ const ManageBookings: FC = () => {
             return 0;
         });
     }, [bookings, facilities, sort]);
-    
+
     const handleSort = (key: string) => {
         setSort(prev => ({ key, asc: prev.key === key ? !prev.asc : true }));
     };
@@ -75,7 +81,7 @@ const ManageBookings: FC = () => {
 
     const confirmDelete = async () => {
         if (!bookingToDelete) return;
-        const { error } = await supabase.from('bookings').delete().eq('id', bookingToDelete.id);
+        const { error } = await firebase.deleteBooking(bookingToDelete.id);
         if (error) {
             alert(`Failed to delete booking: ${getErrorMessage(error)}`);
         } else {
@@ -86,7 +92,7 @@ const ManageBookings: FC = () => {
     };
 
     return (
-         <Card className="p-6 mt-8">
+        <Card className="p-6 mt-8">
             <h2 className="text-xl font-semibold mb-4">All Facility Bookings</h2>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left text-gray-500">
@@ -108,7 +114,7 @@ const ManageBookings: FC = () => {
                                 <td className="px-6 py-4">{booking.booking_slot}</td>
                                 <td className="px-6 py-4">
                                     <button onClick={() => openDeleteModal(booking)} className="text-red-600 hover:text-red-800 p-1 rounded-md hover:bg-red-100" title="Delete Booking">
-                                        <IconTrash className="h-5 w-5"/>
+                                        <IconTrash className="h-5 w-5" />
                                     </button>
                                 </td>
                             </tr>
@@ -116,7 +122,7 @@ const ManageBookings: FC = () => {
                     </tbody>
                 </table>
             </div>
-             <Modal isOpen={isDeleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="Confirm Deletion">
+            <Modal isOpen={isDeleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="Confirm Deletion">
                 {bookingToDelete && (
                     <div>
                         <p className="mb-6">

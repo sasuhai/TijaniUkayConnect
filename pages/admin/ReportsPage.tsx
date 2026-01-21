@@ -1,413 +1,397 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../../services/supabaseService';
-import { useToast } from '../../contexts/ToastContext';
-import { useAuth } from '../../contexts/AuthContext';
+
+import React, { FC, useState } from 'react';
+import * as firebase from '../../services/firebaseService';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { formatDate } from '../../utils/helpers';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-interface MonthlyReport {
-    month: string;
-    newResidents: number;
-    totalBookings: number;
-    issuesReported: number;
-    issuesResolved: number;
-    activeUsers: number;
-}
+type ReportType = 'bookings' | 'issues' | 'residents' | 'visitors';
 
-interface FacilityUsage {
-    facilityName: string;
-    totalBookings: number;
-    uniqueUsers: number;
-    peakDay: string;
-    peakTime: string;
-    utilizationRate: number;
-}
+export const ReportsPage: FC = () => {
+    const [reportType, setReportType] = useState<ReportType>('bookings');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [reportData, setReportData] = useState<any[] | null>(null);
 
-type DataScope = 'my' | 'all';
+    const handleGenerateReport = async () => {
+        if (!startDate || !endDate) {
+            alert('Please select both start and end dates');
+            return;
+        }
 
-export const ReportsPage: React.FC = () => {
-    const { showToast } = useToast();
-    const { user } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-    const [dataScope, setDataScope] = useState<DataScope>('all');
-    const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([]);
-    const [facilityUsage, setFacilityUsage] = useState<FacilityUsage[]>([]);
+        setLoading(true);
+        setReportData(null);
 
-    useEffect(() => {
-        fetchReports();
-    }, [selectedMonth, dataScope]);
-
-    const fetchReports = async () => {
         try {
-            setLoading(true);
+            let data: any[] = [];
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59); // Include full end date
 
-            // Get last 6 months for trend
-            const months = [];
-            for (let i = 5; i >= 0; i--) {
-                const date = new Date();
-                date.setMonth(date.getMonth() - i);
-                months.push(date.toISOString().slice(0, 7));
+            switch (reportType) {
+                case 'bookings': {
+                    const { data: bookings } = await firebase.getBookings();
+                    const { data: facilities } = await firebase.getFacilities();
+
+                    const facilityMap = new Map();
+                    facilities?.forEach((f: any) => {
+                        facilityMap.set(f.id, f.name);
+                        facilityMap.set(String(f.id), f.name);
+                        facilityMap.set(Number(f.id), f.name);
+                    });
+
+                    data = (bookings || []).filter((b: any) => {
+                        const bookingDate = new Date(b.booking_date);
+                        return bookingDate >= start && bookingDate <= end;
+                    }).map((b: any) => ({
+                        ...b,
+                        facility_name: facilityMap.get(b.facility_id) || 'Unknown'
+                    }));
+                    break;
+                }
+                case 'issues': {
+                    const { data: issues } = await firebase.getIssues();
+                    data = (issues || []).filter((i: any) => {
+                        const issueDate = new Date(i.created_at);
+                        return issueDate >= start && issueDate <= end;
+                    });
+                    break;
+                }
+                case 'residents': {
+                    const { data: profiles } = await firebase.getAllProfiles();
+                    data = (profiles || []).filter((p: any) => {
+                        const regDate = new Date(p.created_at);
+                        return regDate >= start && regDate <= end;
+                    });
+                    break;
+                }
+                case 'visitors': {
+                    const { data: visitors } = await firebase.getVisitorInvitations();
+                    data = (visitors || []).filter((v: any) => {
+                        const visitDate = new Date(v.created_at);
+                        return visitDate >= start && visitDate <= end;
+                    });
+                    break;
+                }
             }
 
-            // Fetch monthly data
-            const monthlyData: MonthlyReport[] = await Promise.all(
-                months.map(async (month) => {
-                    const startDate = `${month}-01`;
-                    const endDate = new Date(month + '-01');
-                    endDate.setMonth(endDate.getMonth() + 1);
-                    const endDateStr = endDate.toISOString().slice(0, 10);
-
-                    // Build queries with optional user filtering
-                    let bookingsQuery = supabase.from('bookings').select('*')
-                        .gte('booking_date', startDate)
-                        .lt('booking_date', endDateStr);
-
-                    let issuesQuery = supabase.from('issues').select('status, created_at, resolved_at, resident_id')
-                        .gte('created_at', startDate)
-                        .lt('created_at', endDateStr);
-
-                    // Filter by user if viewing personal data
-                    if (dataScope === 'my' && user) {
-                        bookingsQuery = bookingsQuery.eq('resident_id', user.id);
-                        issuesQuery = issuesQuery.eq('resident_id', user.id);
-                    }
-
-                    const [residentsRes, bookingsRes, issuesRes] = await Promise.all([
-                        supabase.from('profiles').select('created_at').gte('created_at', startDate).lt('created_at', endDateStr),
-                        bookingsQuery,
-                        issuesQuery
-                    ]);
-
-                    const newResidents = residentsRes.data?.length || 0;
-                    const totalBookings = bookingsRes.data?.length || 0;
-                    const issuesReported = issuesRes.data?.length || 0;
-                    const issuesResolved = issuesRes.data?.filter(i => i.status === 'Resolved' || i.status === 'Closed').length || 0;
-
-                    // Count active users (users who made bookings or reported issues)
-                    const activeUserIds = new Set([
-                        ...(bookingsRes.data?.map(b => b.resident_id) || []),
-                        ...(issuesRes.data?.map(i => i.resident_id) || [])
-                    ]);
-
-                    return {
-                        month: new Date(month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-                        newResidents,
-                        totalBookings,
-                        issuesReported,
-                        issuesResolved,
-                        activeUsers: activeUserIds.size
-                    };
-                })
-            );
-
-            setMonthlyReports(monthlyData);
-
-            // Fetch facility usage stats
-            const facilitiesRes = await supabase.from('facilities').select('*');
-            const facilities = facilitiesRes.data || [];
-
-            const usageStats: FacilityUsage[] = await Promise.all(
-                facilities.map(async (facility) => {
-                    let facilityQuery = supabase
-                        .from('bookings')
-                        .select('*')
-                        .eq('facility_id', facility.id)
-                        .gte('booking_date', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)); // Last 90 days
-
-                    // Filter by user if viewing personal data
-                    if (dataScope === 'my' && user) {
-                        facilityQuery = facilityQuery.eq('resident_id', user.id);
-                    }
-
-                    const { data: bookings } = await facilityQuery;
-
-                    const totalBookings = bookings?.length || 0;
-                    const uniqueUsers = new Set(bookings?.map(b => b.resident_id) || []).size;
-
-                    // Find peak day
-                    const dayCount: Record<string, number> = {};
-                    bookings?.forEach(b => {
-                        const day = new Date(b.booking_date).toLocaleDateString('en-US', { weekday: 'long' });
-                        dayCount[day] = (dayCount[day] || 0) + 1;
-                    });
-                    const peakDay = Object.keys(dayCount).reduce((a, b) => dayCount[a] > dayCount[b] ? a : b, 'N/A');
-
-                    // Find peak time
-                    const timeCount: Record<string, number> = {};
-                    bookings?.forEach(b => {
-                        const hour = parseInt(b.booking_slot.split(':')[0]);
-                        const period = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
-                        timeCount[period] = (timeCount[period] || 0) + 1;
-                    });
-                    const peakTime = Object.keys(timeCount).reduce((a, b) => timeCount[a] > timeCount[b] ? a : b, 'N/A');
-
-                    // Calculate utilization rate (assuming 18 slots per day, 90 days)
-                    const totalAvailableSlots = 18 * 90;
-                    const utilizationRate = totalAvailableSlots > 0 ? (totalBookings / totalAvailableSlots) * 100 : 0;
-
-                    return {
-                        facilityName: facility.name,
-                        totalBookings,
-                        uniqueUsers,
-                        peakDay,
-                        peakTime,
-                        utilizationRate: Math.round(utilizationRate)
-                    };
-                })
-            );
-
-            setFacilityUsage(usageStats.filter(f => f.totalBookings > 0));
+            setReportData(data);
         } catch (error) {
-            console.error('Error fetching reports:', error);
-            showToast('Failed to load reports', 'error');
+            console.error('Error generating report:', error);
+            alert('Failed to generate report');
         } finally {
             setLoading(false);
         }
     };
 
-    const exportMonthlyReport = () => {
+    const handleExportPDF = () => {
+        if (!reportData) return;
+
         const doc = new jsPDF();
-        const pageWidth = doc.internal.pageSize.width;
+        const title = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`;
 
-        // Title
-        doc.setFontSize(20);
-        doc.text('Monthly Report', pageWidth / 2, 20, { align: 'center' });
+        doc.setFontSize(18);
+        doc.text(title, 14, 20);
+        doc.setFontSize(11);
+        doc.text(`Period: ${formatDate(startDate)} to ${formatDate(endDate)}`, 14, 28);
+        doc.text(`Total Records: ${reportData.length}`, 14, 35);
 
-        doc.setFontSize(12);
-        doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, 28, { align: 'center' });
+        let headers: string[] = [];
+        let rows: any[][] = [];
 
-        let yPos = 40;
-
-        // Monthly Trends
-        doc.setFontSize(14);
-        doc.text('6-Month Trend', 14, yPos);
-        yPos += 10;
-
-        autoTable(doc, {
-            startY: yPos,
-            head: [['Month', 'New Residents', 'Bookings', 'Issues Reported', 'Issues Resolved', 'Active Users']],
-            body: monthlyReports.map(m => [
-                m.month,
-                m.newResidents.toString(),
-                m.totalBookings.toString(),
-                m.issuesReported.toString(),
-                m.issuesResolved.toString(),
-                m.activeUsers.toString()
-            ]),
-        });
-
-        yPos = (doc as any).lastAutoTable.finalY + 15;
-
-        // Facility Usage
-        if (facilityUsage.length > 0) {
-            if (yPos > 250) {
-                doc.addPage();
-                yPos = 20;
-            }
-
-            doc.text('Facility Usage Statistics (Last 90 Days)', 14, yPos);
-            yPos += 10;
-
-            autoTable(doc, {
-                startY: yPos,
-                head: [['Facility', 'Bookings', 'Unique Users', 'Peak Day', 'Peak Time', 'Utilization %']],
-                body: facilityUsage.map(f => [
-                    f.facilityName,
-                    f.totalBookings.toString(),
-                    f.uniqueUsers.toString(),
-                    f.peakDay,
-                    f.peakTime,
-                    f.utilizationRate + '%'
-                ]),
-            });
+        switch (reportType) {
+            case 'bookings':
+                headers = ['Facility', 'Resident', 'Date', 'Time'];
+                rows = reportData.map(b => [
+                    b.facility_name,
+                    b.resident_name,
+                    formatDate(b.booking_date),
+                    b.booking_slot
+                ]);
+                break;
+            case 'issues':
+                headers = ['Title', 'Category', 'Status', 'Priority', 'Reported By', 'Date'];
+                rows = reportData.map(i => [
+                    i.title,
+                    i.category,
+                    i.status,
+                    i.priority,
+                    i.resident_name,
+                    formatDate(i.created_at)
+                ]);
+                break;
+            case 'residents':
+                headers = ['Name', 'Email', 'Status', 'Role', 'Registered'];
+                rows = reportData.map(p => [
+                    p.full_name,
+                    p.email,
+                    p.status,
+                    p.role,
+                    formatDate(p.created_at)
+                ]);
+                break;
+            case 'visitors':
+                headers = ['Visitor Name', 'Contact', 'Host', 'Visit Date'];
+                rows = reportData.map(v => [
+                    v.visitor_name,
+                    v.visitor_contact || 'N/A',
+                    v.resident_name,
+                    formatDate(v.visit_date_time)
+                ]);
+                break;
         }
 
-        doc.save(`monthly-report-${selectedMonth}.pdf`);
-        showToast('Report exported successfully!', 'success');
+        autoTable(doc, {
+            head: [headers],
+            body: rows,
+            startY: 42,
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [16, 185, 129] }
+        });
+
+        doc.save(`${reportType}-report-${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-96">
-                <Spinner />
-            </div>
-        );
-    }
+    const handleExportCSV = () => {
+        if (!reportData) return;
+
+        let csvContent = '';
+        let headers: string[] = [];
+        let rows: any[][] = [];
+
+        switch (reportType) {
+            case 'bookings':
+                headers = ['Facility', 'Resident', 'Date', 'Time', 'Created At'];
+                rows = reportData.map(b => [
+                    b.facility_name,
+                    b.resident_name,
+                    b.booking_date,
+                    b.booking_slot,
+                    formatDate(b.created_at)
+                ]);
+                break;
+            case 'issues':
+                headers = ['Title', 'Category', 'Status', 'Priority', 'Resident', 'Date'];
+                rows = reportData.map(i => [
+                    i.title,
+                    i.category,
+                    i.status,
+                    i.priority,
+                    i.resident_name,
+                    formatDate(i.created_at)
+                ]);
+                break;
+            case 'residents':
+                headers = ['Name', 'Email', 'Phone', 'Address', 'Status', 'Role', 'Registered'];
+                rows = reportData.map(p => [
+                    p.full_name,
+                    p.email,
+                    p.phone,
+                    p.address,
+                    p.status,
+                    p.role,
+                    formatDate(p.created_at)
+                ]);
+                break;
+            case 'visitors':
+                headers = ['Visitor', 'Contact', 'Purpose', 'Host', 'Visit Date'];
+                rows = reportData.map(v => [
+                    v.visitor_name,
+                    v.visitor_contact || '',
+                    v.purpose || '',
+                    v.resident_name,
+                    formatDate(v.visit_date_time)
+                ]);
+                break;
+        }
+
+        csvContent = headers.join(',') + '\n';
+        rows.forEach(row => {
+            csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${reportType}-report-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    };
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold text-brand-dark">Reports & Statistics</h1>
-                <Button onClick={exportMonthlyReport}>📄 Export Monthly Report</Button>
-            </div>
+            <h2 className="text-2xl font-bold text-brand-dark">Reports</h2>
 
-            {/* Data Scope Selector */}
-            <Card className="p-4">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                        <span className="text-sm font-medium text-gray-700">View Data:</span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setDataScope('my')}
-                                className={`px-4 py-2 rounded-lg font-medium transition ${dataScope === 'my'
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                    }`}
-                            >
-                                📊 My Data
-                            </button>
-                            <button
-                                onClick={() => setDataScope('all')}
-                                className={`px-4 py-2 rounded-lg font-medium transition ${dataScope === 'all'
-                                        ? 'bg-purple-500 text-white'
-                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                    }`}
-                            >
-                                🏘️ All Residents
-                            </button>
-                        </div>
+            {/* Report Configuration */}
+            <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Generate Report</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Report Type
+                        </label>
+                        <select
+                            value={reportType}
+                            onChange={(e) => setReportType(e.target.value as ReportType)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-green"
+                        >
+                            <option value="bookings">Facility Bookings</option>
+                            <option value="issues">Issues Reported</option>
+                            <option value="residents">New Residents</option>
+                            <option value="visitors">Visitor Invitations</option>
+                        </select>
                     </div>
-                    <div className="text-sm text-gray-600">
-                        {dataScope === 'my' ? 'Showing only your activity' : 'Showing all community activity'}
+
+                    <Input
+                        label="Start Date"
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        max={new Date().toISOString().split('T')[0]}
+                    />
+
+                    <Input
+                        label="End Date"
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        min={startDate}
+                        max={new Date().toISOString().split('T')[0]}
+                    />
+
+                    <div className="flex items-end">
+                        <Button
+                            onClick={handleGenerateReport}
+                            disabled={loading}
+                            className="w-full"
+                        >
+                            {loading ? <Spinner /> : 'Generate Report'}
+                        </Button>
                     </div>
                 </div>
             </Card>
 
-            {/* Monthly Trends */}
-            <Card className="p-6">
-                <h2 className="text-2xl font-semibold mb-4">6-Month Trend Analysis</h2>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div>
-                        <h3 className="text-lg font-medium mb-3">Bookings & Issues</h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <LineChart data={monthlyReports}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="month" />
-                                <YAxis />
-                                <Tooltip />
-                                <Legend />
-                                <Line type="monotone" dataKey="totalBookings" stroke="#10b981" name="Bookings" />
-                                <Line type="monotone" dataKey="issuesReported" stroke="#ef4444" name="Issues Reported" />
-                                <Line type="monotone" dataKey="issuesResolved" stroke="#3b82f6" name="Issues Resolved" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    <div>
-                        <h3 className="text-lg font-medium mb-3">Residents & Activity</h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <BarChart data={monthlyReports}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="month" />
-                                <YAxis />
-                                <Tooltip />
-                                <Legend />
-                                <Bar dataKey="newResidents" fill="#8b5cf6" name="New Residents" />
-                                <Bar dataKey="activeUsers" fill="#10b981" name="Active Users" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            </Card>
-
-            {/* Facility Usage Statistics */}
-            <Card className="p-6">
-                <h2 className="text-2xl font-semibold mb-4">Facility Usage Statistics (Last 90 Days)</h2>
-
-                {facilityUsage.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">No facility bookings in the last 90 days</p>
-                ) : (
-                    <>
-                        <div className="mb-6">
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={facilityUsage}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="facilityName" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="totalBookings" fill="#10b981" name="Total Bookings" />
-                                    <Bar dataKey="uniqueUsers" fill="#3b82f6" name="Unique Users" />
-                                </BarChart>
-                            </ResponsiveContainer>
+            {/* Report Results */}
+            {reportData !== null && (
+                <Card className="p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 className="text-lg font-semibold">Report Results</h3>
+                            <p className="text-sm text-gray-600">
+                                Found {reportData.length} records from {formatDate(startDate)} to {formatDate(endDate)}
+                            </p>
                         </div>
+                        {reportData.length > 0 && (
+                            <div className="flex space-x-2">
+                                <Button onClick={handleExportPDF} variant="secondary">
+                                    Export PDF
+                                </Button>
+                                <Button onClick={handleExportCSV} variant="secondary">
+                                    Export CSV
+                                </Button>
+                            </div>
+                        )}
+                    </div>
 
+                    {reportData.length === 0 ? (
+                        <p className="text-center text-gray-500 py-8">
+                            No records found for the selected period
+                        </p>
+                    ) : (
                         <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 border-b">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Facility</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Bookings</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unique Users</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peak Day</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peak Time</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilization</th>
+                                        {reportType === 'bookings' && (
+                                            <>
+                                                <th className="px-4 py-2 text-left">Facility</th>
+                                                <th className="px-4 py-2 text-left">Resident</th>
+                                                <th className="px-4 py-2 text-left">Date</th>
+                                                <th className="px-4 py-2 text-left">Time</th>
+                                            </>
+                                        )}
+                                        {reportType === 'issues' && (
+                                            <>
+                                                <th className="px-4 py-2 text-left">Title</th>
+                                                <th className="px-4 py-2 text-left">Category</th>
+                                                <th className="px-4 py-2 text-left">Status</th>
+                                                <th className="px-4 py-2 text-left">Priority</th>
+                                                <th className="px-4 py-2 text-left">Reported By</th>
+                                            </>
+                                        )}
+                                        {reportType === 'residents' && (
+                                            <>
+                                                <th className="px-4 py-2 text-left">Name</th>
+                                                <th className="px-4 py-2 text-left">Email</th>
+                                                <th className="px-4 py-2 text-left">Status</th>
+                                                <th className="px-4 py-2 text-left">Role</th>
+                                            </>
+                                        )}
+                                        {reportType === 'visitors' && (
+                                            <>
+                                                <th className="px-4 py-2 text-left">Visitor Name</th>
+                                                <th className="px-4 py-2 text-left">Contact</th>
+                                                <th className="px-4 py-2 text-left">Host</th>
+                                                <th className="px-4 py-2 text-left">Visit Date</th>
+                                            </>
+                                        )}
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {facilityUsage.map((facility, index) => (
-                                        <tr key={index} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{facility.facilityName}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-gray-700">{facility.totalBookings}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-gray-700">{facility.uniqueUsers}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-gray-700">{facility.peakDay}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-gray-700">{facility.peakTime}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                                                        <div
-                                                            className="bg-brand-green h-2.5 rounded-full"
-                                                            style={{ width: `${Math.min(facility.utilizationRate, 100)}%` }}
-                                                        ></div>
-                                                    </div>
-                                                    <span className="text-sm font-medium text-gray-700">{facility.utilizationRate}%</span>
-                                                </div>
-                                            </td>
+                                <tbody>
+                                    {reportData.slice(0, 100).map((item, index) => (
+                                        <tr key={index} className="border-b hover:bg-gray-50">
+                                            {reportType === 'bookings' && (
+                                                <>
+                                                    <td className="px-4 py-2">{item.facility_name}</td>
+                                                    <td className="px-4 py-2">{item.resident_name}</td>
+                                                    <td className="px-4 py-2">{formatDate(item.booking_date)}</td>
+                                                    <td className="px-4 py-2">{item.booking_slot}</td>
+                                                </>
+                                            )}
+                                            {reportType === 'issues' && (
+                                                <>
+                                                    <td className="px-4 py-2">{item.title}</td>
+                                                    <td className="px-4 py-2">{item.category}</td>
+                                                    <td className="px-4 py-2">{item.status}</td>
+                                                    <td className="px-4 py-2">{item.priority}</td>
+                                                    <td className="px-4 py-2">{item.resident_name}</td>
+                                                </>
+                                            )}
+                                            {reportType === 'residents' && (
+                                                <>
+                                                    <td className="px-4 py-2">{item.full_name}</td>
+                                                    <td className="px-4 py-2">{item.email}</td>
+                                                    <td className="px-4 py-2">{item.status}</td>
+                                                    <td className="px-4 py-2">{item.role}</td>
+                                                </>
+                                            )}
+                                            {reportType === 'visitors' && (
+                                                <>
+                                                    <td className="px-4 py-2">{item.visitor_name}</td>
+                                                    <td className="px-4 py-2">{item.visitor_contact || 'N/A'}</td>
+                                                    <td className="px-4 py-2">{item.resident_name}</td>
+                                                    <td className="px-4 py-2">{formatDate(item.visit_date_time)}</td>
+                                                </>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
+                            {reportData.length > 100 && (
+                                <p className="text-center text-sm text-gray-500 mt-4">
+                                    Showing first 100 of {reportData.length} records. Export to see all.
+                                </p>
+                            )}
                         </div>
-
-                        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <Card className="p-4 bg-green-50">
-                                <p className="text-sm text-gray-600">Most Popular</p>
-                                <p className="text-xl font-bold text-brand-dark">
-                                    {facilityUsage.reduce((max, f) => f.totalBookings > max.totalBookings ? f : max).facilityName}
-                                </p>
-                                <p className="text-sm text-green-600">
-                                    {facilityUsage.reduce((max, f) => f.totalBookings > max.totalBookings ? f : max).totalBookings} bookings
-                                </p>
-                            </Card>
-
-                            <Card className="p-4 bg-blue-50">
-                                <p className="text-sm text-gray-600">Highest Utilization</p>
-                                <p className="text-xl font-bold text-brand-dark">
-                                    {facilityUsage.reduce((max, f) => f.utilizationRate > max.utilizationRate ? f : max).facilityName}
-                                </p>
-                                <p className="text-sm text-blue-600">
-                                    {facilityUsage.reduce((max, f) => f.utilizationRate > max.utilizationRate ? f : max).utilizationRate}% utilized
-                                </p>
-                            </Card>
-
-                            <Card className="p-4 bg-purple-50">
-                                <p className="text-sm text-gray-600">Most Diverse Users</p>
-                                <p className="text-xl font-bold text-brand-dark">
-                                    {facilityUsage.reduce((max, f) => f.uniqueUsers > max.uniqueUsers ? f : max).facilityName}
-                                </p>
-                                <p className="text-sm text-purple-600">
-                                    {facilityUsage.reduce((max, f) => f.uniqueUsers > max.uniqueUsers ? f : max).uniqueUsers} unique users
-                                </p>
-                            </Card>
-                        </div>
-                    </>
-                )}
-            </Card>
+                    )}
+                </Card>
+            )}
         </div>
     );
 };

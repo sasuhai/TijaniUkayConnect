@@ -3,7 +3,7 @@ import { Calendar, dateFnsLocalizer, View } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Booking, Facility } from '../../types';
 import { Spinner } from '../ui/Spinner';
@@ -51,10 +51,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ facilities, on
     const fetchBookings = async () => {
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('bookings')
-                .select('*')
-                .order('booking_date', { ascending: true });
+            const { data, error } = await firebase.getBookings();
 
             if (error) throw error;
             if (data) setBookings(data as Booking[]);
@@ -67,7 +64,12 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ facilities, on
 
     const events: CalendarEvent[] = useMemo(() => {
         return bookings.map((booking) => {
-            const facility = facilities.find(f => f.id === booking.facility_id);
+            // Handle both string and number facility IDs
+            const facility = facilities.find(f =>
+                f.id === booking.facility_id ||
+                String(f.id) === String(booking.facility_id) ||
+                Number(f.id) === Number(booking.facility_id)
+            );
             const [hours, minutes] = booking.booking_slot.split(':');
             const startDate = new Date(booking.booking_date);
             startDate.setHours(parseInt(hours), parseInt(minutes), 0);
@@ -157,7 +159,11 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ facilities, on
                     <div className="space-y-3">
                         <div>
                             <p className="font-semibold">Facility:</p>
-                            <p>{facilities.find(f => f.id === selectedEvent.resource.facility_id)?.name}</p>
+                            <p>{facilities.find(f =>
+                                f.id === selectedEvent.resource.facility_id ||
+                                String(f.id) === String(selectedEvent.resource.facility_id) ||
+                                Number(f.id) === Number(selectedEvent.resource.facility_id)
+                            )?.name}</p>
                         </div>
                         <div>
                             <p className="font-semibold">Booked by:</p>

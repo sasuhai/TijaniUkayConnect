@@ -54,15 +54,15 @@ Access: ANYWHERE in the world! ✅
 
 **URL Format:**
 ```
-https://yourusername.github.io/TijaniUkayConnect-Gemini/verify-visitor/abc-123
+https://yourusername.github.io/TijaniUkayConnect/verify-visitor/abc-123
 ```
 
 **QR Code Generated:**
 ```typescript
 // Automatically uses:
 baseUrl = "https://yourusername.github.io"
-basePath = "/TijaniUkayConnect-Gemini/"
-Result: https://yourusername.github.io/TijaniUkayConnect-Gemini/verify-visitor/abc-123
+basePath = "/TijaniUkayConnect/"
+Result: https://yourusername.github.io/TijaniUkayConnect/verify-visitor/abc-123
 ```
 
 **Access:**

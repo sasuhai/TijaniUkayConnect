@@ -1,6 +1,6 @@
 
 import React, { FC, useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -18,54 +18,35 @@ export const PollsPage: FC = () => {
         if (!user) return;
         setLoading(true);
         try {
-            // 1. Fetch Polls
-            const { data: pollsData, error: pollsError } = await supabase
-                .from('polls')
-                .select('*')
-                .gte('end_date', new Date().toISOString())
-                .order('created_at', { ascending: false });
+            // Fetch polls with options and votes
+            const { data: pollsData, error: pollsError } = await firebase.getPolls();
 
             if (pollsError) {
-                if (pollsError.code === 'PGRST205' || pollsError.code === '42P01') {
-                    console.warn("Polls table missing");
-                    setPolls([]);
-                    return;
-                }
                 throw pollsError;
             }
-            
+
             if (!pollsData) {
                 setPolls([]);
                 return;
             }
 
+            const nowISO = new Date().toISOString();
+            const activePolls = pollsData.filter((p: any) => p.end_date && p.end_date >= nowISO);
             const pollsList: Poll[] = [];
 
-            for (const p of pollsData) {
-                // 2. Fetch Options & Vote Counts
-                // Note: In a production app, use a Supabase view or RPC to aggregate this efficiently.
-                const { data: optionsData } = await supabase
-                    .from('poll_options')
-                    .select('id, text')
-                    .eq('poll_id', p.id);
+            for (const p of activePolls) {
+                // Get all votes for this poll
+                const { data: allVotes } = await firebase.getPollVotes(p.id);
 
-                const options = optionsData ? await Promise.all(optionsData.map(async (opt) => {
-                     const { count } = await supabase
-                        .from('poll_votes')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('option_id', opt.id);
-                     return { id: opt.id, text: opt.text, votes: count || 0 };
-                })) : [];
+                // Count votes per option
+                const options = p.options ? p.options.map((opt: any) => {
+                    const votes = allVotes ? allVotes.filter((v: any) => v.option_id === opt.id).length : 0;
+                    return { id: opt.id, text: opt.text, votes };
+                }) : [];
 
-                // 3. Check if user voted
-                const { data: myVote } = await supabase
-                    .from('poll_votes')
-                    .select('option_id')
-                    .eq('poll_id', p.id)
-                    .eq('user_id', user.id)
-                    .single();
-
-                const totalVotes = options.reduce((acc, curr) => acc + curr.votes, 0);
+                // Check if user voted
+                const myVote = allVotes ? allVotes.find((v: any) => v.user_id === user.id) : null;
+                const totalVotes = options.reduce((acc: number, curr: any) => acc + curr.votes, 0);
 
                 pollsList.push({
                     id: p.id,
@@ -95,14 +76,14 @@ export const PollsPage: FC = () => {
         if (!user) return;
         setVotingPollId(pollId);
         try {
-            const { error } = await supabase.from('poll_votes').insert({
+            const { error } = await firebase.createPollVote({
                 poll_id: pollId,
                 option_id: optionId,
                 user_id: user.id
             });
 
             if (error) throw error;
-            
+
             // Refresh data
             await fetchPolls();
 
@@ -131,11 +112,11 @@ export const PollsPage: FC = () => {
                                 <h3 className="text-xl font-semibold text-brand-dark mb-2">{poll.question}</h3>
                                 <p className="text-sm text-gray-500">Ends on: {poll.endDate}</p>
                             </div>
-                            
+
                             <div className="space-y-3">
                                 {poll.options.map(option => {
-                                    const percentage = poll.totalVotes > 0 
-                                        ? Math.round((option.votes / poll.totalVotes) * 100) 
+                                    const percentage = poll.totalVotes > 0
+                                        ? Math.round((option.votes / poll.totalVotes) * 100)
                                         : 0;
                                     const isSelected = poll.userVotedOptionId === option.id;
                                     const isVoting = votingPollId === poll.id;
@@ -149,15 +130,15 @@ export const PollsPage: FC = () => {
                                                 <span className="text-gray-500">{percentage}%</span>
                                             </div>
                                             <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                                                <div 
-                                                    className={`h-2.5 rounded-full transition-all duration-500 ${isSelected ? 'bg-brand-green' : 'bg-gray-400'}`} 
+                                                <div
+                                                    className={`h-2.5 rounded-full transition-all duration-500 ${isSelected ? 'bg-brand-green' : 'bg-gray-400'}`}
                                                     style={{ width: `${percentage}%` }}
                                                 ></div>
                                             </div>
                                             {!poll.userVotedOptionId && (
-                                                <Button 
-                                                    onClick={() => handleVote(poll.id, option.id)} 
-                                                    variant="secondary" 
+                                                <Button
+                                                    onClick={() => handleVote(poll.id, option.id)}
+                                                    variant="secondary"
                                                     className="mt-2 w-full text-xs py-1"
                                                     disabled={isVoting}
                                                 >

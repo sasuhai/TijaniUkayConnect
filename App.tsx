@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useCallback, FC } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
+import type { User as FirebaseUser } from 'firebase/auth';
 import type { UserProfile } from './types';
-import { supabase, withTimeout } from './services/supabaseService';
+import * as firebase from './services/firebaseService';
 import { AuthContext } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { ToastContainer } from './components/ui/ToastContainer';
@@ -15,21 +15,21 @@ import { VerifyInvitationPage } from './pages/public/VerifyInvitationPage';
 
 
 const App: FC = () => {
-    const [session, setSession] = useState<Session | null>(null);
+    const [session, setSession] = useState<{ user: FirebaseUser } | null>(null);
 
-    // Helper to check if we have a valid Supabase auth token
+    // Helper to check if we have a valid Firebase auth token
     const hasValidAuthToken = () => {
         try {
-            // Check for Supabase auth token in localStorage
+            // Check for Firebase auth persistence in localStorage
             const authKey = Object.keys(localStorage).find(key =>
-                key.startsWith('sb-') && key.includes('-auth-token')
+                key.startsWith('firebase:authUser:')
             );
             if (authKey) {
                 const authData = localStorage.getItem(authKey);
-                if (authData) {
+                if (authData && authData !== 'null') {
                     const parsed = JSON.parse(authData);
-                    // Check if token exists and hasn't expired
-                    return parsed && parsed.access_token && parsed.expires_at > Date.now() / 1000;
+                    // Firebase handles token expiry internally
+                    return parsed && parsed.uid;
                 }
             }
             return false;
@@ -65,7 +65,7 @@ const App: FC = () => {
         return !cached;
     });
 
-    const fetchUserProfile = useCallback(async (currentSession: Session) => {
+    const fetchUserProfile = useCallback(async (currentSession: { user: FirebaseUser }) => {
         if (!currentSession.user) {
             setUser(null);
             localStorage.removeItem('tijani_user_profile');
@@ -73,12 +73,8 @@ const App: FC = () => {
         }
 
         try {
-            const result = await withTimeout(
-                supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', currentSession.user.id)
-                    .single(),
+            const result = await firebase.withTimeout(
+                firebase.getUserProfile(currentSession.user.uid),
                 8000, // 8 second timeout
                 'Profile fetch timed out'
             );
@@ -88,8 +84,7 @@ const App: FC = () => {
             if (error) {
                 // If it's a connection error, we KEEP the cached user (stale-while-revalidate).
                 // We only clear if we are sure the user doesn't exist (e.g., deleted).
-                // PGRST116 is "Row not found", which suggests the auth user exists but profile doesn't.
-                if (error.code !== 'PGRST116') {
+                if (error.code !== 'not-found') {
                     console.warn("Background profile update failed, keeping cached data.", error.message);
                     return;
                 }
@@ -137,7 +132,7 @@ const App: FC = () => {
 
             try {
                 console.log('App: calling getSession...');
-                const { data: { session } } = await supabase.auth.getSession();
+                const { data: { session } } = await firebase.getSession() as any;
                 console.log('App: getSession result', session);
 
                 if (!isMounted) return;
@@ -191,7 +186,7 @@ const App: FC = () => {
 
         initializeSession();
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        const unsubscribe = firebase.onAuthChange(
             async (event, session) => {
                 if (!isMounted) return;
 
@@ -213,14 +208,14 @@ const App: FC = () => {
 
         return () => {
             isMounted = false;
-            subscription?.unsubscribe();
+            if (unsubscribe) unsubscribe();
         };
     }, [fetchUserProfile]); // Removed 'user' dependency to prevent loops
 
     const logout = async () => {
         localStorage.removeItem('tijani_user_profile');
         setUser(null);
-        const { error } = await supabase.auth.signOut();
+        const { error } = await firebase.logOut();
         if (error) {
             console.error("Error signing out:", error.message);
         }

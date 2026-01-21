@@ -9,7 +9,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { IconTrash } from '../../components/icons';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import { formatDate } from '../../utils/helpers';
 
 export const ManageResidents: FC = () => {
@@ -21,14 +21,14 @@ export const ManageResidents: FC = () => {
 
     const handleStatusChange = async (user: UserProfile, status: UserStatus) => {
         const approvalDate = status === 'Active' ? new Date().toISOString() : user.approval_date;
-        await supabase.from('profiles').update({ status, approval_date: approvalDate }).eq('id', user.id);
+        await firebase.updateProfile(user.id, { status, approval_date: approvalDate });
         console.log(`Email notification sent to ${user.email} about status change to ${status}`);
         fetchData();
     };
-    
+
     const handleRoleChange = async (user: UserProfile, role: 'resident' | 'admin') => {
         if (!currentUser || user.id === currentUser.id) return;
-        await supabase.from('profiles').update({ role }).eq('id', user.id);
+        await firebase.updateProfile(user.id, { role });
         console.log(`Role for ${user.email} changed to ${role}`);
         fetchData();
     };
@@ -40,14 +40,14 @@ export const ManageResidents: FC = () => {
 
     const confirmDelete = async () => {
         if (!userToDelete) return;
-        const { error } = await supabase.from('profiles').delete().eq('id', userToDelete.id);
-        
+        const { error } = await firebase.deleteProfile(userToDelete.id);
+
         if (error) {
             alert(`Failed to delete resident: ${error.message}`);
         } else {
             await fetchData();
         }
-        
+
         setDeleteModalOpen(false);
         setUserToDelete(null);
     };
@@ -78,12 +78,11 @@ export const ManageResidents: FC = () => {
                                     {user.full_name}
                                     <div className="font-normal text-gray-500">{user.address}</div>
                                 </td>
-                                <td className="px-6 py-4">{user.phone}<br/>{user.email}</td>
+                                <td className="px-6 py-4">{user.phone}<br />{user.email}</td>
                                 <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                        user.status === 'Active' ? 'bg-green-100 text-green-800' :
-                                        user.status === 'Pending Approval' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-                                    }`}>{user.status}</span>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${user.status === 'Active' ? 'bg-green-100 text-green-800' :
+                                            user.status === 'Pending Approval' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                                        }`}>{user.status}</span>
                                 </td>
                                 <td className="px-6 py-4 capitalize">
                                     {currentUser?.id === user.id ? (
@@ -106,7 +105,7 @@ export const ManageResidents: FC = () => {
                                         {user.status === 'Active' && <Button onClick={() => handleStatusChange(user, 'Not Active')} variant="danger" className="text-xs py-1 px-2">Deactivate</Button>}
                                         {user.status === 'Not Active' && <Button onClick={() => handleStatusChange(user, 'Active')} className="text-xs py-1 px-2">Activate</Button>}
                                         <button onClick={() => openDeleteModal(user)} className="text-red-600 hover:text-red-800 p-1 rounded-md hover:bg-red-100" title="Delete Resident">
-                                            <IconTrash className="h-5 w-5"/>
+                                            <IconTrash className="h-5 w-5" />
                                         </button>
                                     </div>
                                 </td>
@@ -115,7 +114,7 @@ export const ManageResidents: FC = () => {
                     </tbody>
                 </table>
             </div>
-            
+
             <Modal isOpen={isDeleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="Confirm Deletion">
                 {userToDelete && (
                     <div>

@@ -1,6 +1,6 @@
 
 import React, { useState, FC } from 'react';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import { LandingPage } from './LandingPage';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -27,7 +27,7 @@ export const AuthPage: FC = () => {
         const email = formData.get('email') as string;
         const password = formData.get('password') as string;
 
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await firebase.signIn(email, password);
         if (error) setError(error.message);
         setLoading(false);
     };
@@ -44,26 +44,21 @@ export const AuthPage: FC = () => {
         const phone = formData.get('phone') as string;
         const password = formData.get('password') as string;
 
-        const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: {
-                    full_name: fullName,
-                    address: address,
-                    phone: phone,
-                }
-            }
+        const { error } = await firebase.signUp(email, password, {
+            full_name: fullName,
+            address: address,
+            phone: phone,
         });
 
         if (error) {
             setError(error.message);
         } else {
-            setSuccessMessage("Registration successful! Please check your email to confirm your account. Admins have been notified to review your registration.");
+            setSuccessMessage("Registration successful! Admins have been notified to review your registration.");
 
-            const { data: admins } = await supabase.from('profiles').select('email').eq('role', 'admin');
+            // Notify admins
+            const { data: admins } = await firebase.getAllProfiles();
             if (admins && admins.length > 0) {
-                const adminEmails = admins.map(a => a.email);
+                const adminEmails = admins.filter((a: any) => a.role === 'admin').map((a: any) => a.email);
                 console.log(`NEW USER REGISTERED (${email}). Notifying admins: ${adminEmails.join(', ')}`);
             }
 
@@ -80,14 +75,14 @@ export const AuthPage: FC = () => {
         const formData = new FormData(e.currentTarget);
         const email = formData.get('email') as string;
 
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: window.location.origin,
-        });
-
-        if (error) {
-            setError(error.message);
-        } else {
+        // Firebase password reset
+        try {
+            const { getAuth, sendPasswordResetEmail } = await import('firebase/auth');
+            const auth = firebase.auth;
+            await sendPasswordResetEmail(auth, email);
             setSuccessMessage("Password reset link sent! Please check your email to continue.");
+        } catch (error: any) {
+            setError(error.message);
         }
         setLoading(false);
     };

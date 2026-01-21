@@ -12,7 +12,7 @@ if (!container) throw new Error("No root");
 const root = createRoot(container);
 root.render(
   <React.StrictMode>
-    <BrowserRouter basename="/tukconnect-v2">
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <App />
     </BrowserRouter>
   </React.StrictMode>

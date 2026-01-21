@@ -2,7 +2,8 @@
 import React, { FC, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
+import { supabaseStorage } from '../../services/firebaseService'; // For photo uploads
 import type { Issue, IssueCategory, IssueStatus, IssuePriority } from '../../types';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
 import { Card } from '../../components/ui/Card';
@@ -78,18 +79,9 @@ export const IssueReportingPage: FC = () => {
         if (!user) return;
         setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('issues')
-                .select('*')
-                .eq('resident_id', user.id)
-                .order('created_at', { ascending: false });
+            const { data, error } = await firebase.getIssues(user.id);
 
             if (error) {
-                if (error.code === 'PGRST205' || error.code === '42P01') {
-                    console.warn("Issues table not found. Feature unavailable.");
-                    setIssues([]);
-                    return;
-                }
                 throw error;
             }
             if (data) setIssues(data as Issue[]);
@@ -140,7 +132,7 @@ export const IssueReportingPage: FC = () => {
                 const fileExt = photoFile.name.split('.').pop();
                 const fileName = `${user.id}-${Date.now()}.${fileExt}`;
 
-                const { error: uploadError } = await supabase.storage
+                const { error: uploadError } = await supabaseStorage.storage
                     .from('issue-photos')
                     .upload(fileName, photoFile);
 
@@ -149,7 +141,7 @@ export const IssueReportingPage: FC = () => {
                     showToast('Failed to upload photo, but issue will be submitted', 'warning');
                 } else {
                     // Get public URL
-                    const { data } = supabase.storage
+                    const { data } = supabaseStorage.storage
                         .from('issue-photos')
                         .getPublicUrl(fileName);
                     photoUrl = data.publicUrl;
@@ -168,13 +160,9 @@ export const IssueReportingPage: FC = () => {
                 photo_url: photoUrl || null,
             };
 
-            const { error } = await supabase.from('issues').insert(issueData);
+            const { error } = await firebase.createIssue(issueData as any);
 
             if (error) {
-                if (error.code === 'PGRST205' || error.code === '42P01') {
-                    showToast('System Update Required: Please run the database migration', 'error');
-                    return;
-                }
                 throw error;
             }
 

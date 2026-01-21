@@ -1,6 +1,6 @@
 import React, { FC, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import type { VisitorInvitation } from '../../types';
 import { toYyyyMmDd, formatDate, getErrorMessage } from '../../utils/helpers';
 import { v4 as uuidv4 } from 'uuid';
@@ -76,11 +76,7 @@ export const VisitorInvitationPage: FC = () => {
     const fetchInvitations = useCallback(async () => {
         if (!user) return;
         setLoading(true);
-        const { data, error } = await supabase
-            .from('visitor_invitations')
-            .select('*')
-            .eq('resident_id', user.id)
-            .order('visit_date_time', { ascending: false });
+        const { data, error } = await firebase.getVisitorInvitations(user.id);
 
         if (data) setInvitations(data as VisitorInvitation[]);
         if (error) console.error("Error fetching invitations:", error);
@@ -155,9 +151,7 @@ export const VisitorInvitationPage: FC = () => {
                 qr_code_value: qrValue,
             };
 
-            const { error } = await supabase
-                .from('visitor_invitations')
-                .insert(inviteData);
+            const { error } = await firebase.createVisitorInvitation(inviteData as any);
 
             if (error) throw error;
 
@@ -344,7 +338,7 @@ export const VisitorInvitationPage: FC = () => {
     const confirmDelete = async () => {
         if (!inviteToDelete) return;
 
-        const { error } = await supabase.from('visitor_invitations').delete().eq('id', inviteToDelete.id);
+        const { error } = await firebase.deleteVisitorInvitation(inviteToDelete.id);
 
         if (error) {
             alert("Failed to delete invitation: " + error.message);
@@ -450,11 +444,13 @@ export const VisitorInvitationPage: FC = () => {
         if (inviteId) {
             try {
                 // Query by qr_code_value instead of id
-                const { data: invite, error } = await supabase
-                    .from('visitor_invitations')
-                    .select('*')
-                    .eq('qr_code_value', inviteId)
-                    .single();
+                const { data, error } = await firebase.getVisitorInvitations();
+
+                let invite = null;
+                if (data && !error) {
+                    // Find invitation by qr_code_value
+                    invite = data.find((inv: any) => inv.qr_code_value === inviteId);
+                }
 
                 if (error || !invite) {
                     setScanResult({ status: 'invalid', message: 'Invitation not found in the database.' });

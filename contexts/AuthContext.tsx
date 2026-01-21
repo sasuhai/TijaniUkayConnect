@@ -1,10 +1,10 @@
 
 import { createContext, useContext } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import type { User as FirebaseUser } from 'firebase/auth';
 import type { UserProfile } from '../types';
 
 export interface AuthContextType {
-  session: Session | null;
+  session: { user: FirebaseUser } | null;
   user: UserProfile | null;
   isAdmin: boolean;
   loading: boolean;
@@ -17,8 +17,8 @@ export const AuthContext = createContext<AuthContextType>({
   user: null,
   isAdmin: false,
   loading: true,
-  logout: async () => {},
-  refetchUser: async () => {},
+  logout: async () => { },
+  refetchUser: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);

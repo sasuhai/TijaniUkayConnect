@@ -1,6 +1,6 @@
 
 import React, { FC, useState, useEffect } from 'react';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import type { Announcement } from '../../types';
 import { formatDate } from '../../utils/helpers';
 import { linkifyText } from '../../utils/linkify';
@@ -25,12 +25,11 @@ export const AnnouncementsPage: FC = () => {
             }, 5000);
 
             try {
-                const { data, error } = await supabase.from('announcements').select('*');
+                const { data, error } = await firebase.getAnnouncements();
                 if (isMounted) {
                     if (data) {
-                        const sorted = (data as Announcement[]).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                        setAnnouncements(sorted);
-                        localStorage.setItem('tijani_announcements', JSON.stringify(sorted));
+                        setAnnouncements(data as Announcement[]);
+                        localStorage.setItem('tijani_announcements', JSON.stringify(data));
                     }
                 }
             } catch (error) {

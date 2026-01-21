@@ -1,6 +1,6 @@
 
 import React, { FC, useState, useEffect } from 'react';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import type { VideoAlbum } from '../../types';
 import { urlRegex } from '../../utils/helpers';
 import { Spinner } from '../../components/ui/Spinner';
@@ -22,10 +22,7 @@ export const VideoAlbumPage: FC = () => {
             }, 5000);
 
             try {
-                const { data, error } = await supabase
-                    .from('video_albums')
-                    .select('*')
-                    .order('id', { ascending: false });
+                const { data, error } = await firebase.getVideoAlbums();
 
                 if (isMounted) {
                     if (error) throw error;

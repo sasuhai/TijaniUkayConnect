@@ -1,7 +1,7 @@
 
 import React, { FC, useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import type { Facility, Booking } from '../../types';
 import { toYyyyMmDd, formatDateWithDay, formatDate } from '../../utils/helpers';
 import { FullPageSpinner, Spinner } from '../../components/ui/Spinner';
@@ -31,10 +31,10 @@ export const FacilityBookingPage: FC = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const facilityPromise = supabase.from('facilities').select('*');
-                const bookingPromise = supabase.from('bookings').select('*');
-
-                const [facilityRes, bookingRes] = await Promise.all([facilityPromise, bookingPromise]);
+                const [facilityRes, bookingRes] = await Promise.all([
+                    firebase.getFacilities(),
+                    firebase.getBookings()
+                ]);
 
                 if (facilityRes.error) throw facilityRes.error;
                 if (bookingRes.error) throw bookingRes.error;
@@ -120,7 +120,7 @@ export const FacilityBookingPage: FC = () => {
             booking_date: selectedDate,
             booking_slot: selectedSlot
         };
-        const { data, error } = await supabase.from('bookings').insert(newBookingData).select().single();
+        const { data, error } = await firebase.createBooking(newBookingData as any);
 
         setIsSubmitting(false);
         setBookingModalOpen(false);
@@ -145,7 +145,7 @@ export const FacilityBookingPage: FC = () => {
         if (!bookingToCancel) return;
 
         setIsSubmitting(true);
-        const { error } = await supabase.from('bookings').delete().eq('id', bookingToCancel.id);
+        const { error } = await firebase.deleteBooking(bookingToCancel.id);
 
         if (error) {
             alert("Failed to cancel booking: " + error.message);

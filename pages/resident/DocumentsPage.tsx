@@ -1,6 +1,6 @@
 
 import React, { FC, useState, useEffect } from 'react';
-import { supabase } from '../../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 import type { CommunityDocument } from '../../types';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
@@ -19,12 +19,12 @@ export const DocumentsPage: FC = () => {
     useEffect(() => {
         let isMounted = true;
         const fetchDocs = async () => {
-             const timeoutId = setTimeout(() => {
+            const timeoutId = setTimeout(() => {
                 if (isMounted) setLoading(false);
             }, 5000);
 
             try {
-                const { data, error } = await supabase.from('documents').select('*');
+                const { data, error } = await firebase.getDocuments();
                 if (isMounted) {
                     if (data) {
                         setDocuments(data as CommunityDocument[]);
@@ -32,7 +32,7 @@ export const DocumentsPage: FC = () => {
                     }
                 }
             } catch (error) {
-                 console.error("Error fetching documents:", error);
+                console.error("Error fetching documents:", error);
             } finally {
                 clearTimeout(timeoutId);
                 if (isMounted) setLoading(false);
