@@ -599,7 +599,7 @@ export const LandingPage: FC<{ onLogin: () => void; onRegister: () => void }> = 
                         </div>
                     </div>
                     <div className="border-t border-gray-800 pt-8 text-sm text-center">
-                        {settings?.information2 || `© ${new Date().getFullYear()} ${communityName}. All rights reserved.`}
+                        {settings?.information2 ? settings.information2.replace(/202[0-9]/g, new Date().getFullYear().toString()) : `© ${new Date().getFullYear()} ${communityName}. All rights reserved.`}
                     </div>
                 </div>
             </footer>
