@@ -5,6 +5,7 @@ import type { PhotoAlbum } from '../../types';
 import { urlRegex } from '../../utils/helpers';
 import { Spinner } from '../../components/ui/Spinner';
 import { Card } from '../../components/ui/Card';
+import { ImageDisplay } from '../../components/ui/ImageDisplay';
 
 export const PhotoAlbumPage: FC = () => {
     // Initialize with empty array to force fresh fetch and avoid stale cache issues
@@ -121,8 +122,15 @@ export const PhotoAlbumPage: FC = () => {
     };
 
     const getThumbnailUrl = (album: PhotoAlbum): string => {
+        if (!album.cover_image_url) return createPlaceholderSVG(album.title || 'Photo Album');
+
+        // Allow Firestore URLs
+        if (album.cover_image_url.startsWith('firestore://')) {
+            return album.cover_image_url;
+        }
+
         // Check if cover_image_url exists
-        if (album.cover_image_url &&
+        if (
             !album.cover_image_url.includes('placehold') &&
             !album.cover_image_url.includes('placeholder') &&
             !album.cover_image_url.includes('data:image')) {
@@ -151,19 +159,6 @@ export const PhotoAlbumPage: FC = () => {
 
         // Use SVG data URI for reliable placeholder
         return createPlaceholderSVG(album.title || 'Photo Album');
-    };
-
-    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-        const img = e.currentTarget;
-        const album = albums.find(a => a.id === img.getAttribute('data-album-id'));
-
-        // Fallback to SVG placeholder
-        if (album) {
-            img.src = createPlaceholderSVG(album.title || 'Photo Album');
-        } else {
-            img.src = createPlaceholderSVG('Photo Album');
-        }
-        img.onerror = null;
     };
 
     return (
@@ -197,12 +192,11 @@ export const PhotoAlbumPage: FC = () => {
                         const cardContent = (
                             <Card className="overflow-hidden h-full flex flex-col">
                                 <div className="relative w-full h-48">
-                                    <img
+                                    <ImageDisplay
                                         src={getThumbnailUrl(album)}
                                         alt={album.title}
-                                        data-album-id={album.id}
                                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                                        onError={handleImageError}
+                                        fallbackSrc={createPlaceholderSVG(album.title || 'Photo Album')}
                                     />
                                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center">
                                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 px-4 py-2 bg-white/80 rounded-lg text-brand-dark font-semibold">

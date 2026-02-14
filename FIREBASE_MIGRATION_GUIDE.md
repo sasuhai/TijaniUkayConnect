@@ -9,6 +9,7 @@ This guide walks you through migrating from Supabase to Firebase.
 1. ✅ Firebase project created
 2. ✅ Environment variables configured in `.env`
 3. ✅ Firebase Firestore rules temporarily set to allow all writes (for migration)
+4. ✅ **No Firebase Storage Setup Required** (We use Firestore for images to keep it simple and free)
 
 ### Step 1: Set Firebase Rules to Test Mode (TEMPORARY!)
 
@@ -193,6 +194,12 @@ service cloud.firestore {
       allow create: if true; // Allow anonymous analytics
       allow update, delete: if false;
     }
+
+    match /stored_images/{imageId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow delete: if isAdmin(); // Only admins can delete raw images to prevent data loss
+    }
   }
 }
 ```
@@ -246,13 +253,14 @@ If you need to rollback to Supabase:
 - Check network tab for failed requests
 
 ### File upload errors
-- Verify Supabase credentials are still in .env
-- Check Supabase Storage is still accessible
-- Test file upload manually
+- Check console for "Quota exceeded" errors (Firestore has 1MB limit per doc)
+- Ensure image compression is working (client-side resize to <800px)
+- Verify `stored_images` collection permissions are set properly
 
 ## 📝 Notes
 
-- **Hybrid Storage**: We keep Supabase Storage for files (Firebase Storage requires paid plan)
+- **Custom Storage**: We use a custom "Base64 in Firestore" solution to avoid Firebase Storage setup/billing.
+- **Image Compression**: Images are automatically resized client-side prior to upload.
 - **No Cold Starts**: Firebase Firestore has no hibernation - always instant!
 - **Real-time (Optional)**: You can add real-time listeners later if needed
 - **Indexes**: All queries sort in JavaScript to avoid composite index creation
@@ -262,6 +270,6 @@ If you need to rollback to Supabase:
 Once migration is complete, you'll have:
 - ✅ Always-on database (no hibernation)
 - ✅ Instant cold starts
+- ✅ Unified Firebase stack (Auth, DB, Storage)
 - ✅ Better free tier limits
-- ✅ Same application functionality
-- ✅ File storage still working
+- ✅ No external dependencies like Supabase

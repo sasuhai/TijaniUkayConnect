@@ -27,8 +27,8 @@ import {
   onAuthStateChanged,
   User as FirebaseUser
 } from 'firebase/auth';
-import { createClient } from '@supabase/supabase-js';
 import type { UserProfile } from '../types';
+import { compressImage } from '../utils/imageCompression';
 
 // Initialize Firebase
 const firebaseConfig = {
@@ -44,10 +44,67 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-// Supabase Storage (Hybrid - Firebase Storage requires paid plan)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-export const supabaseStorage = createClient(supabaseUrl, supabaseAnonKey);
+// ==========================================
+// STORED IMAGES (Base64 in Firestore)
+// ==========================================
+
+export const uploadFile = async (
+  folder: string,
+  file: File,
+  fileName?: string
+) => {
+  try {
+    const base64String = await compressImage(file, 800, 0.7);
+
+    // Save to 'stored_images' collection
+    const docRef = await addDoc(collection(db, 'stored_images'), {
+      data: base64String,
+      created_at: Timestamp.now(),
+      mime_type: 'image/jpeg'
+    });
+
+    return {
+      data: {
+        path: docRef.id,
+        publicUrl: `firestore://stored_images/${docRef.id}`
+      },
+      error: null
+    };
+  } catch (error: any) {
+    console.error("Upload error:", error);
+    return { data: null, error: formatError(error) };
+  }
+};
+
+export const deleteFile = async (path: string) => {
+  try {
+    const docId = path.replace('firestore://stored_images/', '');
+    if (docId) {
+      await deleteDoc(doc(db, 'stored_images', docId));
+    }
+    return { error: null };
+  } catch (error: any) {
+    return { error: formatError(error) };
+  }
+};
+
+export const getStoredImage = async (url: string) => {
+  try {
+    if (!url || !url.startsWith('firestore://')) return url;
+
+    const docId = url.replace('firestore://stored_images/', '');
+    const docRef = doc(db, 'stored_images', docId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return docSnap.data().data as string;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching stored image:", error);
+    return null;
+  }
+};
 
 // Helper: Convert Firestore Timestamp to ISO string
 const timestampToISO = (timestamp: any): string => {

@@ -1,9 +1,7 @@
-
 import React, { FC, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import * as firebase from '../../services/firebaseService';
-import { supabaseStorage } from '../../services/firebaseService'; // For photo uploads
 import type { Issue, IssueCategory, IssueStatus, IssuePriority } from '../../types';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
 import { Card } from '../../components/ui/Card';
@@ -13,6 +11,7 @@ import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
 import { Spinner, FullPageSpinner } from '../../components/ui/Spinner';
 import { Modal } from '../../components/ui/Modal';
+import { ImageDisplay } from '../../components/ui/ImageDisplay';
 
 const StatusBadge: FC<{ status: IssueStatus }> = ({ status }) => {
     const statusClasses = {
@@ -132,19 +131,17 @@ export const IssueReportingPage: FC = () => {
                 const fileExt = photoFile.name.split('.').pop();
                 const fileName = `${user.id}-${Date.now()}.${fileExt}`;
 
-                const { error: uploadError } = await supabaseStorage.storage
-                    .from('issue-photos')
-                    .upload(fileName, photoFile);
+                const { data: uploadData, error: uploadError } = await firebase.uploadFile(
+                    'issue-photos',
+                    photoFile,
+                    fileName
+                );
 
                 if (uploadError) {
                     console.error('Photo upload error:', uploadError);
                     showToast('Failed to upload photo, but issue will be submitted', 'warning');
-                } else {
-                    // Get public URL
-                    const { data } = supabaseStorage.storage
-                        .from('issue-photos')
-                        .getPublicUrl(fileName);
-                    photoUrl = data.publicUrl;
+                } else if (uploadData) {
+                    photoUrl = uploadData.publicUrl;
                     console.log('Photo uploaded successfully:', photoUrl);
                 }
             }
@@ -285,7 +282,7 @@ export const IssueReportingPage: FC = () => {
                         {selectedIssue.photo_url && (
                             <div>
                                 <p className="font-semibold mb-2">Photo:</p>
-                                <img
+                                <ImageDisplay
                                     src={selectedIssue.photo_url}
                                     alt="Issue"
                                     className="w-full max-h-96 object-contain rounded-md border"

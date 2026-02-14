@@ -5,7 +5,7 @@ This document lists all files that need to be updated to use Firebase instead of
 ## Files Using Supabase (28 files total)
 
 ### Services (1 file)
-1. ✅ ~~`services/supabaseService.ts`~~ → Keep for storage only
+1. ❌ `services/supabaseService.ts` → DELETE (Storage moved to Firestore Custom)
 
 ### Pages - Auth (2 files)
 2. `pages/auth/LandingPage.tsx`
@@ -110,19 +110,19 @@ await firebase.updateTableName(id, data);
 await firebase.deleteTableName(id);
 ```
 
-### Phase 3: Storage (Keep Supabase!)
+### Phase 3: Storage (Base64 in Firestore)
 
-File uploads/downloads continue using Supabase:
+File uploads now use Firebase Storage:
+
 ```typescript
-// Keep using:
-import { supabaseStorage } from '../services/firebaseService';
-// OR
-import { supabase } from '../services/supabaseService';
+import * as firebase from '../../services/firebaseService';
 
-// For storage operations:
-supabase.storage.from('bucket').upload(...)
-supabase.storage.from('bucket').download(...)
-supabase.storage.from('bucket').remove(...)
+// Upload:
+const { data, error } = await firebase.uploadFile('folder-name', file);
+const url = data.publicUrl;
+
+// Delete:
+await firebase.deleteFile(path);
 ```
 
 ## Detailed File Changes
@@ -273,29 +273,21 @@ const { error } = await firebase.deleteAnnouncement(id);
 | `.from(...).update(data).eq('id', id)` | `update{TableName}(id, data)` |
 | `.from(...).delete().eq('id', id)` | `delete{TableName}(id)` |
 
-## Storage Operations (Keep Supabase)
+## Storage Operations (Use Firebase)
 
-All storage operations continue using Supabase:
+All storage operations now use the Firebase service helper:
 
 ```typescript
-import { supabaseStorage } from '../services/firebaseService';
-// OR
-import { supabase } from '../services/supabaseService';
+import * as firebase from '../services/firebaseService';
 
-// Upload:
-const { data, error } = await supabase.storage
-  .from('bucket-name')
-  .upload(path, file);
-
-// Download/Get URL:
-const { data } = supabase.storage
-  .from('bucket-name')
-  .getPublicUrl(path);
+// Upload and get URL:
+const { data, error } = await firebase.uploadFile('bucket-name', file);
+if (data) {
+    const url = data.publicUrl;
+}
 
 // Delete:
-const { error } = await supabase.storage
-  .from('bucket-name')
-  .remove([path]);
+const { error } = await firebase.deleteFile(path);
 ```
 
 ## Testing Checklist
@@ -332,5 +324,5 @@ After updating each file, test:
 - ✅ All Firebase functions return `{ data, error }` format
 - ✅ Timestamps are automatically converted
 - ✅ Sorting is done in JavaScript (no indexes needed)
-- ✅ Storage continues using Supabase
+- ✅ Storage uses Firestore Base64
 - ✅ User IDs need to be updated after Firebase Auth setup
